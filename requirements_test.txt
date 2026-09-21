@@ -1,7 +1,8 @@
 # Tracks HA core — bump together with .python-version (currently Python 3.14).
 # 0.13.366 resolves Home Assistant 2026.9.3.
+#
+# HTTP is mocked with this package's own AiohttpClientMocker rather than
+# aioresponses: aioresponses 0.7.9 breaks against the aiohttp 3.14 that HA
+# pulls in (ClientResponse.__init__ now requires stream_writer), whereas the
+# bundled mocker is maintained in lockstep with the aiohttp HA ships.
 pytest-homeassistant-custom-component==0.13.366
-
-# Mocks aiohttp at the transport layer, so the auth journey and both GraphQL
-# surfaces are exercised as real HTTP rather than as patched methods.
-aioresponses==0.7.9
