@@ -221,3 +221,29 @@ async def test_reauth_rejects_a_wrong_password(hass):
     assert result["type"] is FlowResultType.FORM
     assert result["errors"] == {"base": "invalid_auth"}
     assert entry.data[CONF_SSO_COOKIE_VALUE] == "OLD"
+
+
+async def test_sign_in_uses_a_cookie_less_session(hass):
+    """aiohttp's CookieJar mangles B2C's cookies; auth.py handles them itself."""
+    import aiohttp
+
+    seen = {}
+
+    def _capture(hass_arg, **kwargs):
+        seen.update(kwargs)
+        return AsyncMock()
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": SOURCE_USER}
+    )
+    with (
+        patch(
+            "custom_components.post_at.config_flow.async_create_clientsession",
+            side_effect=_capture,
+        ),
+        _patch_login(),
+        _patch_setup(),
+    ):
+        await hass.config_entries.flow.async_configure(result["flow_id"], USER_INPUT)
+
+    assert isinstance(seen.get("cookie_jar"), aiohttp.DummyCookieJar)

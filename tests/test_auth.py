@@ -25,13 +25,17 @@ SELF_ASSERTED = re.compile(r"^https://login\.post\.at/.+/SelfAsserted")
 CONFIRMED = re.compile(r"^https://login\.post\.at/.+/confirmed")
 
 
-def signin_page(tenant: str = B2C_TENANT, policy: str = B2C_POLICY) -> str:
-    """Render a B2C sign-in page carrying the injected SETTINGS blob."""
+def signin_page(tenant: str = B2C_TENANT, policy: str = "B2C_1A_signup_signin") -> str:
+    """Render a B2C sign-in page carrying the injected SETTINGS blob.
+
+    ``hosts.tenant`` mirrors what Post actually sends: a path prefix that
+    already contains the policy, not a bare tenant id.
+    """
     settings = json.dumps(
         {
             "csrf": "CSRF123",
             "transId": "StateProperties=abc",
-            "hosts": {"tenant": tenant, "policy": policy},
+            "hosts": {"tenant": f"/{tenant}/{policy}", "policy": policy},
             "api": "CombinedSigninAndSignup",
         }
     )
@@ -256,3 +260,91 @@ async def test_cookie_property_exposes_what_to_persist():
     with mock_aiohttp_client() as mocker:
         auth = PostAtSession(make_mock_session(mocker), SsoCookie("n", "v"))
         assert auth.cookie == SsoCookie("n", "v")
+
+
+def test_cookie_header_is_verbatim():
+    """The regression that broke the live login.
+
+    aiohttp's CookieJar round-trips through SimpleCookie, which quotes values
+    holding characters outside the legal token set. B2C's values are full of
+    '=', '+' and '/', and one cookie name contains a '|'. Post answers the
+    quoted header with a bare 'Bad Request' before checking the credentials.
+    """
+    from custom_components.post_at.auth import cookie_header
+
+    cookies = {
+        "x-ms-cpim-csrf": "abc+def/ghi==",
+        "x-ms-cpim-cache|xp-aowunu025_0": "m1.rNo7RQ/5nSkW.MGFCq4==.0.LGcVDiY4",
+    }
+    header = cookie_header(cookies)
+
+    assert '"' not in header
+    assert "x-ms-cpim-csrf=abc+def/ghi==" in header
+    assert (
+        "x-ms-cpim-cache|xp-aowunu025_0=m1.rNo7RQ/5nSkW.MGFCq4==.0.LGcVDiY4" in header
+    )
+
+
+async def test_login_sends_the_collected_cookies_on_selfasserted():
+    with mock_aiohttp_client() as mocker:
+        _journey(mocker)
+        await PostAtSession(make_mock_session(mocker)).async_login(
+            "u@example.invalid", "pw"
+        )
+        posted = [c for c in mocker.mock_calls if c[0] == "POST"]
+
+    assert posted, "SelfAsserted was never called"
+    assert "x-ms-cpim-csrf=CSRFCOOKIE" in posted[0][3]["cookie"]
+
+
+async def test_login_sends_cookies_on_the_confirm_step():
+    with mock_aiohttp_client() as mocker:
+        _journey(mocker)
+        await PostAtSession(make_mock_session(mocker)).async_login(
+            "u@example.invalid", "pw"
+        )
+        confirmed = [c for c in mocker.mock_calls if "confirmed" in str(c[1])]
+
+    assert confirmed
+    assert "x-ms-cpim-csrf=CSRFCOOKIE" in confirmed[0][3]["cookie"]
+
+
+async def test_journey_urls_do_not_double_the_policy_segment():
+    """The regression that produced a 404 on the live endpoint.
+
+    ``SETTINGS.hosts.tenant`` is a path prefix that already contains the
+    policy. Appending the policy to it again yields
+    ``/<tenant>/<POLICY>/<POLICY>/SelfAsserted`` and a 404.
+    """
+    with mock_aiohttp_client() as mocker:
+        _journey(mocker)
+        await PostAtSession(make_mock_session(mocker)).async_login(
+            "u@example.invalid", "pw"
+        )
+        urls = [str(call[1]) for call in mocker.mock_calls]
+
+    journey = [u for u in urls if "SelfAsserted" in u or "confirmed" in u]
+    assert journey, "the journey never got past the sign-in page"
+    for url in journey:
+        assert url.count("B2C_1A_signup_signin/B2C_1A_signup_signin") == 0, url
+        assert "/f098c632-5a55-45ba-9bf4-c13870157cf1/B2C_1A_signup_signin/" in url
+
+
+def test_journey_base_falls_back_without_hosts():
+    from custom_components.post_at.auth import _journey_base
+    from custom_components.post_at.const import B2C_HOST, B2C_TENANT
+
+    base, policy = _journey_base({})
+    assert base == f"{B2C_HOST}/{B2C_TENANT}/{B2C_POLICY}"
+    assert policy == B2C_POLICY
+
+
+def test_journey_base_uses_the_prefix_verbatim():
+    from custom_components.post_at.auth import _journey_base
+    from custom_components.post_at.const import B2C_HOST
+
+    base, policy = _journey_base(
+        {"hosts": {"tenant": "/tenant-id/B2C_1A_renamed", "policy": "B2C_1A_renamed"}}
+    )
+    assert base == f"{B2C_HOST}/tenant-id/B2C_1A_renamed"
+    assert policy == "B2C_1A_renamed"

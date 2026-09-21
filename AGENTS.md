@@ -82,6 +82,19 @@ no consumer has managed to map). The table in `status.py` is Post's own
 [ha-oesterreichische-post](https://github.com/ha-parcel-integrations/ha-oesterreichische-post)
 and reproduced with thanks.
 
+## Two traps that already bit
+
+Both cost a live debugging round; both now have regression tests.
+
+1. **Never let aiohttp manage B2C's cookies.** Its `CookieJar` serialises via
+   `http.cookies.SimpleCookie`, which quotes values containing `=`, `+`, `/`
+   and mangles the cookie name containing `|`. Post replies `Bad Request`
+   before checking credentials. Sessions are built with `DummyCookieJar` and
+   `auth.cookie_header()` writes the header verbatim.
+2. **`SETTINGS.hosts.tenant` is a path prefix, not a tenant id.** It already
+   contains the policy. Use `auth._journey_base()`; never
+   `f"{host}/{tenant}/{policy}"`.
+
 ## Structural risks
 
 - **The sign-in journey is HTML-shaped.** Post restyling their B2C pages breaks
