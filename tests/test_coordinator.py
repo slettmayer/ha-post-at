@@ -257,3 +257,67 @@ async def test_unchanged_parcel_fires_nothing(hass, entry):
     await hass.async_block_till_done()
 
     assert events == []
+
+
+def _delivered_detail(days_ago: int):
+    from homeassistant.util import dt as dt_util
+
+    when = dt_util.utcnow() - timedelta(days=days_ago)
+    return _detail("delivered", when.isoformat())
+
+
+async def test_recently_delivered_parcels_are_kept(hass, entry):
+    client = _client([SUMMARY_ONE], {"0001": _delivered_detail(2)})
+    coordinator = PostAtCoordinator(hass, entry, client)
+    await coordinator.async_refresh()
+
+    assert [p.tracking_code for p in coordinator.data] == ["0001"]
+
+
+async def test_long_delivered_parcels_are_dropped(hass, entry):
+    client = _client([SUMMARY_ONE], {"0001": _delivered_detail(30)})
+    coordinator = PostAtCoordinator(hass, entry, client)
+    await coordinator.async_refresh()
+
+    assert coordinator.data == []
+
+
+async def test_active_parcels_are_never_dropped_however_old(hass, entry):
+    client = _client(
+        [SUMMARY_ONE],
+        {"0001": _detail("deliveryHandOver", "2020-01-01T00:00:00+00:00")},
+    )
+    coordinator = PostAtCoordinator(hass, entry, client)
+    await coordinator.async_refresh()
+
+    assert [p.tracking_code for p in coordinator.data] == ["0001"]
+
+
+async def test_a_delivered_parcel_without_a_timestamp_is_kept(hass, entry):
+    detail = {
+        "estimatedDelivery": {"startDate": None, "endDate": None, "startTime": None},
+        "sendungsEvents": [{"trackingStateKey": "delivered", "textEn": "x"}],
+    }
+    client = _client([SUMMARY_ONE], {"0001": detail})
+    coordinator = PostAtCoordinator(hass, entry, client)
+    await coordinator.async_refresh()
+
+    assert [p.tracking_code for p in coordinator.data] == ["0001"]
+
+
+async def test_an_aged_out_parcel_does_not_re_register_every_poll(hass, entry):
+    """The trap the retention filter introduces if events diff on self.data."""
+    events = []
+    hass.bus.async_listen(EVENT_PARCEL_REGISTERED, events.append)
+    client = _client(
+        [SUMMARY_ONE, SUMMARY_TWO],
+        {"0001": _detail("deliveryHandOver"), "0002": _delivered_detail(30)},
+    )
+    coordinator = PostAtCoordinator(hass, entry, client)
+    await coordinator.async_refresh()  # first refresh: events suppressed
+    await coordinator.async_refresh()
+    await coordinator.async_refresh()
+    await hass.async_block_till_done()
+
+    assert coordinator.data and all(p.tracking_code == "0001" for p in coordinator.data)
+    assert events == [], "an aged-out parcel was re-announced"

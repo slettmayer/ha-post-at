@@ -104,6 +104,6 @@ Both cost a live debugging round; both now have regression tests.
   re-authenticate often and `auth.py` needs rethinking.
 - **`graphqlAuthenticated` is undocumented and unsanctioned.** It may change or
   be gated without notice. This is why enrichment lives on the public endpoint.
-- **Weight and dimension units are assumed** (kg and cm), inherited unverified
-  from the sibling integration.
+- **Weight is kilograms and dimensions centimetres**, confirmed 2026-09-21
+  against a real 5.85 kg / 80x53x32 parcel.
 - `hacs/action@main` and hassfest `@master` are floating CI refs.

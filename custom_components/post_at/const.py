@@ -130,3 +130,10 @@ EVENT_PARCEL_REGISTERED = "post_at_parcel_registered"
 EVENT_PARCEL_STATUS_CHANGED = "post_at_parcel_status_changed"
 EVENT_PARCEL_DELIVERED = "post_at_parcel_delivered"
 EVENT_PARCEL_DELIVERY_TIME_CHANGED = "post_at_parcel_delivery_time_changed"
+
+
+# How long a delivered parcel stays on the summary sensor. Post's account list
+# reaches months back, and every entry is rewritten into the recorder on each
+# poll -- 25 parcels is roughly 15 KB, against Home Assistant's ~16 KB
+# practical ceiling for a state attribute.
+DELIVERED_RETENTION_DAYS = 7
