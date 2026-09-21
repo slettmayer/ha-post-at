@@ -1,0 +1,9 @@
+{
+  "entity": {
+    "sensor": {
+      "parcels_in_delivery": { "default": "mdi:package-variant-closed" },
+      "next_delivery": { "default": "mdi:truck-delivery" },
+      "last_update": { "default": "mdi:clock-check-outline" }
+    }
+  }
+}

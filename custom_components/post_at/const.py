@@ -4,9 +4,13 @@ from __future__ import annotations
 
 from enum import StrEnum
 
+from homeassistant.const import Platform
+
 DOMAIN = "post_at"
 MANUFACTURER = "Österreichische Post AG"
 ATTRIBUTION = "Data provided by Österreichische Post AG"
+
+PLATFORMS = [Platform.SENSOR]
 
 
 class ParcelStatus(StrEnum):
