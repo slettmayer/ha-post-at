@@ -281,10 +281,16 @@ A single service device, "Post.at", carrying:
 Each entry in `parcels[]`:
 
 ```
-sendungsnummer, bezeichnung, status, raw_status, status_text,
-eta_start, eta_end, eta_time, eta_text, sender, weight, dimensions,
-last_event { timestamp, place, state_key, text }, url
+sendungsnummer, bezeichnung, status, trackingStateKey, raw_status,
+status_text, eta_start, eta_end, eta_time, eta_text, sender, weight,
+dimensions, last_event { timestamp, place, state_key, text }, url
 ```
+
+`trackingStateKey` is exactly what Post sent (`deliveryHandOver`);
+`raw_status` is the upper-snaked spelling the table in §6 is keyed on
+(`DELIVERY_HAND_OVER`). Both are published: the verbatim key is what an issue
+report should quote, and it is the only actionable detail when a status comes
+back `unknown`.
 
 `status_text` is Post's own `textEn` and `eta_text` its own
 `estimatedDeliveryDateText`; neither needs mapping and both read well on a
