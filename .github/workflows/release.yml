@@ -1,0 +1,83 @@
+name: Auto Release
+
+on:
+  workflow_run:
+    workflows: ["Validate"]
+    types: [completed]
+    branches: [main]
+
+jobs:
+  release:
+    if: github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 0
+
+      - name: Extract version from manifest.json
+        id: version
+        run: |
+          version=$(jq -r '.version' custom_components/post_at/manifest.json)
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "tag=v${version}" >> "$GITHUB_OUTPUT"
+
+      - name: Check if release already exists
+        id: check
+        run: |
+          if gh release view "${TAG}" > /dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract changelog section
+        if: steps.check.outputs.exists == 'false'
+        id: notes
+        run: |
+          notes=$(awk -v ver="${VERSION}" '
+            $0 == "## " ver { found=1; next }
+            found && /^## / { exit }
+            found { print }
+          ' CHANGELOG.md | sed -e '/^$/N;/^\n$/d' -e 's/^[[:space:]]*//')
+          echo "${notes}" > /tmp/release-notes.md
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+
+      - name: Build the HACS archive
+        if: steps.check.outputs.exists == 'false'
+        run: |
+          # HACS extracts this archive straight into
+          # `custom_components/post_at/`
+          # (`zip_file.extractall(self.content.path.local)`), so the
+          # integration's files must sit at the archive ROOT -- a top-level
+          # `post_at/` directory inside the zip would land as
+          # `custom_components/post_at/post_at/`. Hence the `cd`
+          # and the `.` rather than zipping the path from here.
+          #
+          # The asset name must match `filename` in hacs.json exactly: HACS asks
+          # the release for that one asset by name and fails the download if it
+          # is absent. The HACS validation action only checks that `filename` is
+          # set -- it never verifies the asset exists, so a broken archive step
+          # fails silently at install time, never in CI.
+          cd custom_components/post_at
+          zip -r -q "${GITHUB_WORKSPACE}/post_at.zip" . -x '*__pycache__*' '*.pyc'
+          unzip -l "${GITHUB_WORKSPACE}/post_at.zip"
+
+      - name: Create release
+        if: steps.check.outputs.exists == 'false'
+        run: |
+          gh release create "${TAG}" \
+            --title "${TAG}" \
+            --target "${{ github.event.workflow_run.head_sha }}" \
+            --notes-file /tmp/release-notes.md \
+            post_at.zip
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

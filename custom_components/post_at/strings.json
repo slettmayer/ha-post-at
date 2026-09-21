@@ -1,0 +1,30 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Österreichische Post account",
+        "description": "Sign in with your post.at account. Your password is used once to obtain a session and is never stored.",
+        "data": {
+          "email": "Email",
+          "password": "Password"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Sign in again",
+        "description": "The post.at session for {email} has expired. Enter your password to sign in again.",
+        "data": {
+          "password": "Password"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Invalid email or password.",
+      "cannot_connect": "Could not reach post.at.",
+      "unknown": "Unexpected error."
+    },
+    "abort": {
+      "already_configured": "This post.at account is already configured.",
+      "reauth_successful": "Signed in again successfully."
+    }
+  }
+}

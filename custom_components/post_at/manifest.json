@@ -1,0 +1,14 @@
+{
+  "domain": "post_at",
+  "name": "Österreichische Post (Account)",
+  "codeowners": [
+    "@slettmayer"
+  ],
+  "config_flow": true,
+  "documentation": "https://github.com/slettmayer/ha-post-at",
+  "integration_type": "service",
+  "iot_class": "cloud_polling",
+  "issue_tracker": "https://github.com/slettmayer/ha-post-at/issues",
+  "requirements": [],
+  "version": "0.1.0"
+}

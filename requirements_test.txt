@@ -1,0 +1,7 @@
+# Tracks HA core — bump together with .python-version (currently Python 3.14).
+# 0.13.366 resolves Home Assistant 2026.9.3.
+pytest-homeassistant-custom-component==0.13.366
+
+# Mocks aiohttp at the transport layer, so the auth journey and both GraphQL
+# surfaces are exercised as real HTTP rather than as patched methods.
+aioresponses==0.7.9

@@ -1,0 +1,7 @@
+# Pinned exactly, and kept apart from requirements_test.txt so the Ruff job does
+# not install Home Assistant to run a linter.
+#
+# The pin must be `==`. A `>=` floor lets pip resolve whatever is newest, and a
+# ruff release that expands the default rule set then fails CI on code nobody
+# touched.
+ruff==0.16.8
