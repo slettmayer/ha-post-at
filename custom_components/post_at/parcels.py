@@ -5,17 +5,25 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from .const import TRACKING_URL, ParcelStatus
+from .const import LANGUAGE_DE, TRACKING_URL, ParcelStatus
 from .models import Parcel
 from .status import map_status, normalize_state_key
 
 
-def normalize_parcel(summary: dict[str, Any], detail: dict[str, Any] | None) -> Parcel:
+def normalize_parcel(
+    summary: dict[str, Any],
+    detail: dict[str, Any] | None,
+    language: str,
+) -> Parcel:
     """Build a :class:`Parcel` from one list entry and its public detail.
 
     ``detail`` is ``None`` for a parcel the account knows about but Post has
     not scanned yet. That is a normal state, not an error: identity is kept and
     the status reports ``unknown`` until the first scan.
+
+    ``language`` is the one the detail was *fetched* in; it only chooses
+    between the event's two fixed-language text fields, since everything else
+    Post has already localised in the reply.
     """
     tracking_code = str(summary.get("sendungsnummer") or "")
     label = summary.get("bezeichnung") or None
@@ -51,7 +59,7 @@ def normalize_parcel(summary: dict[str, Any], detail: dict[str, Any] | None) -> 
         status=map_status(state_key),
         tracking_state_key=str(state_key) if state_key else None,
         raw_status=normalize_state_key(state_key),
-        status_text=_event_text(event),
+        status_text=_event_text(event, language),
         eta_start=_parse_dt(eta.get("startDate")),
         eta_end=_parse_dt(eta.get("endDate")),
         eta_time=eta.get("startTime"),
@@ -59,7 +67,7 @@ def normalize_parcel(summary: dict[str, Any], detail: dict[str, Any] | None) -> 
         sender=shipper.get("name"),
         weight=_as_float(detail.get("weight")),
         dimensions=_dimensions(detail.get("dimensions")),
-        last_event=_event_projection(event),
+        last_event=_event_projection(event, language),
         url=url,
     )
 
@@ -78,14 +86,24 @@ def _newest_event(events: Any) -> dict[str, Any] | None:
     return max(dated, key=lambda e: str(e.get("timestamp") or ""))
 
 
-def _event_text(event: dict[str, Any] | None) -> str | None:
-    """Post's own wording for an event, English first."""
+def _event_text(event: dict[str, Any] | None, language: str) -> str | None:
+    """Post's own wording for an event, in the requested language.
+
+    These two fields are the exception to Post's ``Accept-Language`` handling:
+    ``text`` is always German and ``textEn`` always English, whatever the
+    header asked for, so the choice has to be made here. Either may be absent,
+    and a wording in the wrong language beats no wording at all.
+    """
     if not event:
         return None
+    if language == LANGUAGE_DE:
+        return event.get("text") or event.get("textEn") or None
     return event.get("textEn") or event.get("text") or None
 
 
-def _event_projection(event: dict[str, Any] | None) -> dict[str, Any] | None:
+def _event_projection(
+    event: dict[str, Any] | None, language: str
+) -> dict[str, Any] | None:
     """Reduce an event to the few fields worth publishing."""
     if not event:
         return None
@@ -93,7 +111,7 @@ def _event_projection(event: dict[str, Any] | None) -> dict[str, Any] | None:
         "timestamp": event.get("timestamp"),
         "place": event.get("eventPlaceName"),
         "state_key": normalize_state_key(event.get("trackingStateKey")),
-        "text": _event_text(event),
+        "text": _event_text(event, language),
     }
 
 

@@ -13,9 +13,13 @@ from custom_components.post_at.auth import (
 )
 from custom_components.post_at.const import (
     CONF_EMAIL,
+    CONF_LANGUAGE,
     CONF_SSO_COOKIE_NAME,
     CONF_SSO_COOKIE_VALUE,
     DOMAIN,
+    LANGUAGE_DE,
+    LANGUAGE_EN,
+    default_language,
 )
 
 USER_INPUT = {"email": "user@example.invalid", "password": "secret"}
@@ -247,3 +251,46 @@ async def test_sign_in_uses_a_cookie_less_session(hass):
         await hass.config_entries.flow.async_configure(result["flow_id"], USER_INPUT)
 
     assert isinstance(seen.get("cookie_jar"), aiohttp.DummyCookieJar)
+
+
+async def test_default_language_is_german_only_for_a_german_home_assistant():
+    assert default_language("de") == LANGUAGE_DE
+    assert default_language("de-AT") == LANGUAGE_DE
+    assert default_language("en") == LANGUAGE_EN
+    assert default_language("fr") == LANGUAGE_EN
+    assert default_language(None) == LANGUAGE_EN
+
+
+async def test_options_flow_offers_the_language_picker(hass):
+    entry = MockConfigEntry(domain=DOMAIN, data={CONF_EMAIL: "u@example.invalid"})
+    entry.add_to_hass(hass)
+
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "init"
+
+
+async def test_options_flow_stores_the_chosen_language(hass):
+    entry = MockConfigEntry(domain=DOMAIN, data={CONF_EMAIL: "u@example.invalid"})
+    entry.add_to_hass(hass)
+
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], user_input={CONF_LANGUAGE: LANGUAGE_DE}
+    )
+
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert entry.options[CONF_LANGUAGE] == LANGUAGE_DE
+
+
+async def test_options_flow_defaults_to_the_home_assistant_language(hass):
+    """An unconfigured entry shows the derived default, not a blank field."""
+    hass.config.language = "de"
+    entry = MockConfigEntry(domain=DOMAIN, data={CONF_EMAIL: "u@example.invalid"})
+    entry.add_to_hass(hass)
+
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    schema = result["data_schema"]({})
+
+    assert schema[CONF_LANGUAGE] == LANGUAGE_DE

@@ -59,6 +59,34 @@ CONF_SSO_COOKIE_NAME = "sso_cookie_name"
 CONF_SSO_COOKIE_VALUE = "sso_cookie_value"
 
 
+# --- Language ----------------------------------------------------------------
+#
+# Post localises its API on the `Accept-Language` request header, and offers
+# exactly two languages. Anything that is not an `en` prefix -- `de-AT`, `fr`,
+# a malformed tag, or no header at all -- is served German, so the header has
+# to be sent explicitly or a fully English Home Assistant still shows
+# "Logistikzentrum Kärnten, AT".
+#
+# Localised: estimatedDeliveryDateText, trackingState, trackingDesc,
+# eventPlaceName. Not localised: `text` is always German and `textEn` always
+# English, whatever the header says -- see `parcels._event_text`.
+CONF_LANGUAGE = "language"
+LANGUAGE_DE = "de"
+LANGUAGE_EN = "en"
+LANGUAGES = [LANGUAGE_DE, LANGUAGE_EN]
+
+
+def default_language(hass_language: str | None) -> str:
+    """Pick the default for a Home Assistant configured in ``hass_language``.
+
+    German only for a German Home Assistant; English for everything else,
+    because English is the more useful of Post's two languages to a reader who
+    has chosen neither.
+    """
+    tag = str(hass_language or "").casefold()
+    return LANGUAGE_DE if tag.startswith(LANGUAGE_DE) else LANGUAGE_EN
+
+
 # --- GraphQL -----------------------------------------------------------------
 #
 # Two endpoints, split by role. The authenticated one is used ONLY to discover

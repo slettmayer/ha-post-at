@@ -409,9 +409,15 @@ requires. The icon is an original work, not Post's logo -- see
 - **The API is undocumented and unsanctioned.** Unlike the public keyless
   tracking endpoint, `graphqlAuthenticated` carries no expectation of stability.
   Post may change or gate it without notice.
-- **Terms of service.** Automating access to the logged-in account area may
-  conflict with Post's terms. This is a decision for the repository owner before
-  publishing to HACS, not a technical question.
+- **Terms of service — resolved as far as it can be, 2026-09-21.** Post
+  publishes no terms of use covering their website, the account area or these
+  endpoints: every document under `/i/c/agb*` is a per-product PDF about the
+  postal contract, the German content sitemap holds no `nutzungsbedingungen`
+  page, and `robots.txt` carries no `Disallow`. Nothing permits this and
+  nothing forbids it. Since the gap cannot be closed from the outside, the
+  README carries an explicit "use at your own risk" disclaimer naming the
+  unknown rather than implying the question was settled. Asking Post directly
+  was considered and rejected: silence is not binding, a refusal would be.
 - **`trackingStateKey` is unverified on the authenticated endpoint.** This is
   why enrichment reads from the public endpoint instead (§5). If a parcel ever
   appears in the account that the public endpoint will not resolve, it degrades

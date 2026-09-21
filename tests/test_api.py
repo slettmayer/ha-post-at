@@ -14,6 +14,8 @@ from custom_components.post_at.auth import PostAtAuthExpired
 from custom_components.post_at.const import (
     GRAPHQL_AUTHENTICATED_URL,
     GRAPHQL_PUBLIC_URL,
+    LANGUAGE_DE,
+    LANGUAGE_EN,
 )
 from tests.conftest import make_mock_session
 
@@ -29,7 +31,7 @@ def _auth(token="TOKEN"):
 
 
 def _client(mocker, auth=None):
-    return PostAtApiClient(make_mock_session(mocker), auth or _auth())
+    return PostAtApiClient(make_mock_session(mocker), auth or _auth(), LANGUAGE_EN)
 
 
 async def test_list_shipments_returns_the_shipment_list():
@@ -139,7 +141,7 @@ async def test_public_detail_needs_no_token():
     with mock_aiohttp_client() as mocker:
         mocker.post(GRAPHQL_PUBLIC_URL, status=200, json=DETAIL_RESPONSE)
         auth = _auth()
-        client = PostAtApiClient(make_mock_session(mocker), auth)
+        client = PostAtApiClient(make_mock_session(mocker), auth, LANGUAGE_EN)
         await client.async_get_public_detail("0000000000000000000001")
 
     auth.async_get_token.assert_not_awaited()
@@ -154,3 +156,31 @@ async def test_public_detail_never_requests_an_address():
     query = data["query"].lower()
     for forbidden in ("recipientaddress", "consignee", "packageredirections"):
         assert forbidden not in query
+
+
+async def test_list_shipments_sends_the_chosen_language():
+    with mock_aiohttp_client() as mocker:
+        mocker.post(GRAPHQL_AUTHENTICATED_URL, status=200, json=LIST_RESPONSE)
+        client = PostAtApiClient(make_mock_session(mocker), _auth(), LANGUAGE_DE)
+        await client.async_list_shipments()
+        _method, _url, _data, headers = mocker.mock_calls[0]
+
+    assert headers["accept-language"] == "de"
+
+
+async def test_public_detail_sends_the_chosen_language():
+    """Without this header Post serves German whatever the account says."""
+    with mock_aiohttp_client() as mocker:
+        mocker.post(GRAPHQL_PUBLIC_URL, status=200, json=DETAIL_RESPONSE)
+        client = PostAtApiClient(make_mock_session(mocker), _auth(), LANGUAGE_EN)
+        await client.async_get_public_detail("0000000000000000000001")
+        _method, _url, _data, headers = mocker.mock_calls[0]
+
+    assert headers["accept-language"] == "en"
+
+
+async def test_the_client_exposes_its_language():
+    """The coordinator reads it back, so there is only one source of truth."""
+    with mock_aiohttp_client() as mocker:
+        client = PostAtApiClient(make_mock_session(mocker), _auth(), LANGUAGE_DE)
+        assert client.language == LANGUAGE_DE

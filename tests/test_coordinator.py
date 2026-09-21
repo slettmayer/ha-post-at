@@ -18,6 +18,8 @@ from custom_components.post_at.const import (
     EVENT_PARCEL_REGISTERED,
     EVENT_PARCEL_STATUS_CHANGED,
     IDLE_INTERVAL_MINUTES,
+    LANGUAGE_DE,
+    LANGUAGE_EN,
     ParcelStatus,
 )
 from custom_components.post_at.coordinator import PostAtCoordinator
@@ -41,8 +43,9 @@ def _detail(state_key, timestamp="2026-09-21T08:00:00.000+00:00", eta=None):
     }
 
 
-def _client(shipments, details):
+def _client(shipments, details, language=LANGUAGE_EN):
     client = AsyncMock()
+    client.language = language
     client.async_list_shipments = AsyncMock(return_value=shipments)
     client.async_get_public_detail = AsyncMock(
         side_effect=lambda code: details.get(code)
@@ -321,3 +324,15 @@ async def test_an_aged_out_parcel_does_not_re_register_every_poll(hass, entry):
 
     assert coordinator.data and all(p.tracking_code == "0001" for p in coordinator.data)
     assert events == [], "an aged-out parcel was re-announced"
+
+
+async def test_parcels_are_normalised_in_the_language_the_client_asked_for(hass, entry):
+    """The client owns the language; the coordinator must not re-derive it."""
+    detail = _detail("deliveryHandOver")
+    detail["sendungsEvents"][0] |= {"text": "auf Deutsch", "textEn": "in English"}
+    coordinator = PostAtCoordinator(
+        hass, entry, _client([SUMMARY_ONE], {"0001": detail}, LANGUAGE_DE)
+    )
+    await coordinator.async_refresh()
+
+    assert coordinator.data[0].status_text == "auf Deutsch"
