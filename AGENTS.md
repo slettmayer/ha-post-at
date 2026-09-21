@@ -118,4 +118,8 @@ Both cost a live debugging round; both now have regression tests.
   be gated without notice. This is why enrichment lives on the public endpoint.
 - **Weight is kilograms and dimensions centimetres**, confirmed 2026-09-21
   against a real 5.85 kg / 80x53x32 parcel.
+- **A delivery date with no time is read in `Europe/Vienna`**, not in Home
+  Assistant's zone: Post's estimate is an Austrian calendar day. Everything
+  `parcels._parse_dt` returns is timezone-aware, because `sensor.next_delivery`
+  calls `min()` across parcels and a naive value would raise there.
 - `hacs/action@main` and hassfest `@master` are floating CI refs.

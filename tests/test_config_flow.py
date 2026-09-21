@@ -294,3 +294,39 @@ async def test_options_flow_defaults_to_the_home_assistant_language(hass):
     schema = result["data_schema"]({})
 
     assert schema[CONF_LANGUAGE] == LANGUAGE_DE
+
+
+async def test_reauth_leaves_the_reload_to_the_update_listener(hass):
+    """The flow must not schedule a reload of its own.
+
+    The entry already carries an update listener that reloads on any change.
+    A reload scheduled by the flow on top of that is the duplicate Home
+    Assistant deprecates today and rejects in 2026.12.0 -- and
+    `async_update_reload_and_abort` schedules one whenever the entry changed,
+    which a successful reauth always does, whatever
+    `reload_even_if_entry_is_unchanged` is set to.
+    """
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id="user@example.invalid",
+        data={
+            CONF_EMAIL: "user@example.invalid",
+            CONF_SSO_COOKIE_NAME: "x-ms-cpim-sso:t_0",
+            CONF_SSO_COOKIE_VALUE: "OLD",
+        },
+    )
+    entry.add_to_hass(hass)
+    result = await entry.start_reauth_flow(hass)
+
+    with (
+        _patch_login(SsoCookie("x-ms-cpim-sso:t_0", "NEW")),
+        _patch_setup(),
+        patch.object(hass.config_entries, "async_schedule_reload") as scheduled,
+    ):
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"], {"password": "secret"}
+        )
+
+    assert result["reason"] == "reauth_successful"
+    assert entry.data[CONF_SSO_COOKIE_VALUE] == "NEW"
+    assert scheduled.call_count == 0

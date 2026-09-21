@@ -56,6 +56,10 @@ class PostAtApiClient:
         """
         return self._language
 
+    def invalidate_token(self) -> None:
+        """Force the next request to mint a fresh access token."""
+        self._auth.invalidate_token()
+
     async def async_list_shipments(self) -> list[dict[str, Any]]:
         """Return the account's received shipments, newest first."""
         token = await self._auth.async_get_token()

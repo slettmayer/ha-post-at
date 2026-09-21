@@ -35,10 +35,22 @@ _KEEP = (
 async def async_get_config_entry_diagnostics(
     hass: HomeAssistant, entry: PostAtConfigEntry
 ) -> dict[str, Any]:
-    """Return a redacted snapshot of the entry and the current parcels."""
-    coordinator = entry.runtime_data
-    return {
+    """Return a redacted snapshot of the entry and the current parcels.
+
+    ``runtime_data`` is deleted when an entry unloads, and Home Assistant
+    serves a diagnostics download whatever state the entry is in. Reading it
+    unguarded would raise -- and so return HTTP 500 -- for a disabled entry or
+    one stuck in ``setup_retry``, which is exactly the state a user is in when
+    they are asked to attach diagnostics to an issue.
+    """
+    coordinator = getattr(entry, "runtime_data", None)
+    diagnostics: dict[str, Any] = {
         "entry": async_redact_data(dict(entry.data), TO_REDACT),
+        "state": str(entry.state),
+    }
+    if coordinator is None:
+        return diagnostics
+    return diagnostics | {
         "update_interval": str(coordinator.update_interval),
         "last_update_success": coordinator.last_update_success,
         "parcel_count": len(coordinator.data or []),

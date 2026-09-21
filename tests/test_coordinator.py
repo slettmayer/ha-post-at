@@ -1,11 +1,12 @@
 """Polling, interval selection, the 401 retry and event emission."""
 
 from datetime import timedelta
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.update_coordinator import UpdateFailed
+from homeassistant.util import dt as dt_util
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.post_at.api import PostAtApiError
@@ -50,6 +51,9 @@ def _client(shipments, details, language=LANGUAGE_EN):
     client.async_get_public_detail = AsyncMock(
         side_effect=lambda code: details.get(code)
     )
+    # Sync on the real client, so an AsyncMock here would hand the coordinator
+    # a coroutine it never awaits.
+    client.invalidate_token = MagicMock()
     return client
 
 
@@ -263,8 +267,6 @@ async def test_unchanged_parcel_fires_nothing(hass, entry):
 
 
 def _delivered_detail(days_ago: int):
-    from homeassistant.util import dt as dt_util
-
     when = dt_util.utcnow() - timedelta(days=days_ago)
     return _detail("delivered", when.isoformat())
 
@@ -336,3 +338,69 @@ async def test_parcels_are_normalised_in_the_language_the_client_asked_for(hass,
     await coordinator.async_refresh()
 
     assert coordinator.data[0].status_text == "auf Deutsch"
+
+
+async def test_the_401_retry_drops_the_rejected_token(hass, entry):
+    """Without this the retry replays the token post.at just rejected."""
+    client = _client([SUMMARY_ONE], {"0001": _detail("deliveryHandOver")})
+    client.async_list_shipments = AsyncMock(
+        side_effect=[PostAtAuthExpired("stale"), [SUMMARY_ONE]]
+    )
+    coordinator = PostAtCoordinator(hass, entry, client)
+    await coordinator.async_refresh()
+
+    assert client.invalidate_token.call_count == 1
+
+
+async def test_returning_parcels_are_re_enriched_every_poll(hass, entry):
+    """A returning parcel is inactive but still moving, so it is not settled.
+
+    Caching it would freeze its status and `last_event` for as long as it
+    stayed on the account list, and a reroute or a counter collection could
+    never take it to delivered.
+    """
+    client = _client([SUMMARY_ONE], {"0001": _detail("deliveryInReturn")})
+    coordinator = PostAtCoordinator(hass, entry, client)
+    await coordinator.async_refresh()
+    await coordinator.async_refresh()
+
+    assert coordinator.data[0].status is ParcelStatus.RETURNING
+    assert client.async_get_public_detail.await_count == 2
+
+
+async def _first_sight(hass, entry, timestamp):
+    """Introduce an already-delivered parcel *after* the first refresh.
+
+    The first refresh is deliberately silent, so the parcel has to arrive on
+    a later poll for the first-sight path to be the one under test.
+    """
+    client = _client([], {})
+    coordinator = PostAtCoordinator(hass, entry, client)
+    await coordinator.async_refresh()
+
+    delivered = []
+    hass.bus.async_listen(EVENT_PARCEL_DELIVERED, delivered.append)
+    client.async_list_shipments = AsyncMock(return_value=[SUMMARY_ONE])
+    client.async_get_public_detail = AsyncMock(
+        return_value=_detail("delivered", timestamp=timestamp)
+    )
+    await coordinator.async_refresh()
+    await hass.async_block_till_done()
+    return delivered
+
+
+async def test_a_parcel_first_seen_already_delivered_fires_delivered(hass, entry):
+    """There is no transition to observe, but it did just arrive."""
+    just_now = (dt_util.utcnow() - timedelta(minutes=30)).isoformat()
+    assert len(await _first_sight(hass, entry, just_now)) == 1
+
+
+async def test_an_old_delivery_surfacing_late_stays_quiet(hass, entry):
+    """Post's list reaches months back; nobody wants last month's parcel."""
+    long_ago = (dt_util.utcnow() - timedelta(days=40)).isoformat()
+    assert await _first_sight(hass, entry, long_ago) == []
+
+
+async def test_a_first_sight_delivery_without_a_timestamp_stays_quiet(hass, entry):
+    """A missed notification beats a wrong one."""
+    assert await _first_sight(hass, entry, None) == []

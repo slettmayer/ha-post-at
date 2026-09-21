@@ -25,6 +25,7 @@ from .const import (
     EVENT_PARCEL_DELIVERY_TIME_CHANGED,
     EVENT_PARCEL_REGISTERED,
     EVENT_PARCEL_STATUS_CHANGED,
+    FIRST_SIGHT_DELIVERED_MAX_AGE_HOURS,
     IDLE_INTERVAL_MINUTES,
     ParcelStatus,
 )
@@ -91,13 +92,16 @@ class PostAtCoordinator(TimestampDataUpdateCoordinator[list[Parcel]]):
         """List shipments, renewing the token once if the first call is 401.
 
         The access token lives an hour and is renewed pre-emptively, so a 401
-        here means it was rejected early. One retry forces a fresh renewal; a
-        second failure is a genuinely dead session and becomes a reauth.
+        here means it was rejected early. Dropping the cached token forces the
+        retry to mint a new one -- without that the retry would replay the
+        token post.at just rejected and fail identically. A second failure is
+        a genuinely dead session and becomes a reauth.
         """
         try:
             return await self._client.async_list_shipments()
         except PostAtAuthExpired:
             _LOGGER.debug("post.at rejected the token; renewing once and retrying")
+            self._client.invalidate_token()
             return await self._client.async_list_shipments()
 
     async def _build(self, summary: dict[str, Any]) -> Parcel:
@@ -107,7 +111,11 @@ class PostAtCoordinator(TimestampDataUpdateCoordinator[list[Parcel]]):
             return settled
         detail = await self._client.async_get_public_detail(code)
         parcel = normalize_parcel(summary, detail, self._client.language)
-        if not parcel.is_active:
+        # Only `delivered` is final. A returning parcel is also `is_active ==
+        # False` -- it no longer counts towards the active poll cadence -- but
+        # it is still being scanned, and a reroute or a counter collection can
+        # still take it to delivered. Caching it here would freeze it forever.
+        if parcel.status is ParcelStatus.DELIVERED:
             self._settled[code] = parcel
         return parcel
 
@@ -123,11 +131,19 @@ class PostAtCoordinator(TimestampDataUpdateCoordinator[list[Parcel]]):
             self._seen_first_refresh = True
             return
 
+        now = dt_util.utcnow()
         for parcel in parcels:
             before = previous.get(parcel.tracking_code)
             payload = parcel.as_attribute()
             if before is None:
                 self.hass.bus.async_fire(EVENT_PARCEL_REGISTERED, payload)
+                # A parcel can appear already delivered -- there is no
+                # transition to observe, but it did just arrive, so the
+                # arrival event still has to fire.
+                if parcel.status is ParcelStatus.DELIVERED and _arrived_recently(
+                    parcel, now
+                ):
+                    self.hass.bus.async_fire(EVENT_PARCEL_DELIVERED, payload)
                 continue
             if before.status is not parcel.status:
                 # The final hop to delivered gets its own event rather than a
@@ -145,6 +161,21 @@ class PostAtCoordinator(TimestampDataUpdateCoordinator[list[Parcel]]):
                     )
             if (before.eta_start, before.eta_end) != (parcel.eta_start, parcel.eta_end):
                 self.hass.bus.async_fire(EVENT_PARCEL_DELIVERY_TIME_CHANGED, payload)
+
+
+def _arrived_recently(parcel: Parcel, now: datetime) -> bool:
+    """Whether a parcel seen for the first time has only just been delivered.
+
+    Post's account list reaches months back and can surface an old delivery
+    late, so an unbounded first-sight `delivered` would announce a parcel that
+    arrived weeks ago. A parcel whose delivery carries no usable timestamp
+    stays silent: a missed notification is better than a wrong one, and the
+    parcel is still published on the summary sensor either way.
+    """
+    when = _delivered_at(parcel)
+    if when is None:
+        return False
+    return when >= now - timedelta(hours=FIRST_SIGHT_DELIVERED_MAX_AGE_HOURS)
 
 
 def _drop_stale_deliveries(parcels: list[Parcel]) -> list[Parcel]:

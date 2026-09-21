@@ -95,7 +95,14 @@ class PostAtConfigFlow(ConfigFlow, domain=DOMAIN):
                 entry.data[CONF_EMAIL], user_input[CONF_PASSWORD]
             )
             if cookie is not None:
-                return self.async_update_reload_and_abort(
+                # Update only -- the entry's update listener owns the reload.
+                # `async_update_reload_and_abort` would schedule a second one
+                # on top of it, which Home Assistant logs a deprecation for
+                # today and stops allowing in 2026.12.0. Its
+                # `reload_even_if_entry_is_unchanged=False` does not help:
+                # a successful reauth writes a new cookie, so the entry *has*
+                # changed and it reloads anyway.
+                return self.async_update_and_abort(
                     entry,
                     data_updates={
                         CONF_SSO_COOKIE_NAME: cookie.name,

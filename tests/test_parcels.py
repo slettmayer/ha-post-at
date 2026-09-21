@@ -204,3 +204,92 @@ def test_each_language_falls_back_to_the_other_text():
         normalize_parcel(SUMMARY, only_english, LANGUAGE_DE).status_text
         == "Item accepted"
     )
+
+
+def test_newest_event_compares_instants_not_strings():
+    """Mixed offsets make a string sort pick the wrong event.
+
+    `09:00+02:00` is 07:00 UTC and sorts *after* `08:35+00:00` as text, which
+    would roll a cross-border parcel's status backwards.
+    """
+    detail = {
+        "sendungsEvents": [
+            {
+                "trackingStateKey": "deliveryHandOver",
+                "timestamp": "2026-09-21T09:00:00.000+02:00",
+                "textEn": "older",
+            },
+            {
+                "trackingStateKey": "delivered",
+                "timestamp": "2026-09-21T08:35:23.000+00:00",
+                "textEn": "newer",
+            },
+        ]
+    }
+    parcel = normalize_parcel(SUMMARY, detail, LANGUAGE_EN)
+
+    assert parcel.status_text == "newer"
+    assert parcel.status is ParcelStatus.DELIVERED
+
+
+def test_newest_event_tolerates_an_unparseable_timestamp():
+    detail = {
+        "sendungsEvents": [
+            {"trackingStateKey": "delivered", "timestamp": "nonsense", "textEn": "bad"},
+            {
+                "trackingStateKey": "deliveryHandOver",
+                "timestamp": "2026-09-21T08:00:00.000+00:00",
+                "textEn": "good",
+            },
+        ]
+    }
+    assert normalize_parcel(SUMMARY, detail, LANGUAGE_EN).status_text == "good"
+
+
+def test_a_bare_delivery_date_is_read_as_an_austrian_day():
+    """Post's sibling `estimatedDeliveryDate` is date-only, so this can be.
+
+    `fromisoformat` would return it naive, which breaks
+    `sensor.next_delivery`. A delivery date is an Austrian calendar day.
+    """
+    detail = deepcopy(DETAIL)
+    detail["estimatedDelivery"] = {
+        "startDate": "2026-09-22",
+        "endDate": "2026-09-23",
+        "startTime": None,
+    }
+    parcel = normalize_parcel(SUMMARY, detail, LANGUAGE_EN)
+
+    assert parcel.eta_start.utcoffset() is not None
+    assert parcel.eta_start.isoformat() == "2026-09-22T00:00:00+02:00"
+    assert parcel.eta_end.isoformat() == "2026-09-23T00:00:00+02:00"
+
+
+def test_a_full_timestamp_keeps_its_own_offset():
+    """Only a value with no zone of its own is read in Vienna."""
+    detail = deepcopy(DETAIL)
+    detail["estimatedDelivery"] = {
+        "startDate": "2026-09-22T06:00:00.000Z",
+        "endDate": None,
+        "startTime": None,
+    }
+    parcel = normalize_parcel(SUMMARY, detail, LANGUAGE_EN)
+
+    assert parcel.eta_start.isoformat() == "2026-09-22T06:00:00+00:00"
+
+
+def test_mixed_bare_and_zoned_etas_stay_comparable():
+    """`sensor.next_delivery` calls `min()` across every active parcel."""
+    bare = deepcopy(DETAIL)
+    bare["estimatedDelivery"] = {"startDate": "2026-09-22", "endDate": None}
+    zoned = deepcopy(DETAIL)
+    zoned["estimatedDelivery"] = {
+        "startDate": "2026-09-22T06:00:00.000Z",
+        "endDate": None,
+    }
+    etas = [
+        normalize_parcel(SUMMARY, bare, LANGUAGE_EN).eta_start,
+        normalize_parcel(SUMMARY, zoned, LANGUAGE_EN).eta_start,
+    ]
+
+    assert min(etas).isoformat() == "2026-09-22T00:00:00+02:00"
