@@ -8,8 +8,8 @@ addopts = "-p no:cacheprovider"
 target-version = "py314"
 line-length = 88
 # Ruff formats Python inside Markdown fences. The spec and the plan quote code
-# for humans to read, so reformatting them adds churn without adding value --
-# and a fenced snippet is not always standalone-valid Python anyway.
+# for humans to read, and some fences are deliberately partial, so reformatting
+# them is churn against prose rather than against source.
 exclude = ["docs"]
 
 [tool.ruff.lint]
