@@ -107,3 +107,22 @@ query ShipmentPublic($id: String!) {
   }
 }
 """
+
+
+# --- Polling -----------------------------------------------------------------
+#
+# Short while anything is moving, long when nothing is. Not user-configurable:
+# a parcel feed has one sensible cadence and an option would only invite people
+# to hammer an undocumented endpoint.
+ACTIVE_INTERVAL_MINUTES = 15
+IDLE_INTERVAL_MINUTES = 60
+
+# --- Events ------------------------------------------------------------------
+#
+# Automations key on these rather than on per-parcel entities: one automation
+# then covers every parcel, present and future, with nothing to update when a
+# parcel arrives.
+EVENT_PARCEL_REGISTERED = "post_at_parcel_registered"
+EVENT_PARCEL_STATUS_CHANGED = "post_at_parcel_status_changed"
+EVENT_PARCEL_DELIVERED = "post_at_parcel_delivered"
+EVENT_PARCEL_DELIVERY_TIME_CHANGED = "post_at_parcel_delivery_time_changed"
