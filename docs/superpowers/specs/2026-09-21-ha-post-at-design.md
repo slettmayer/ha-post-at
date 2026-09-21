@@ -46,6 +46,23 @@ show what is currently on its way.
 There is no official surface for "the parcels currently addressed to me" at any
 price. The account API is the only route, and it is undocumented.
 
+Note the asymmetry the design leans on: `graphqlPublic` is undocumented but
+genuinely public, keyless, introspectable and already relied upon by a shipped
+integration. `graphqlAuthenticated` is none of those things.
+
+### 3.4 Prior art
+
+- [ha-oesterreichische-post](https://github.com/ha-parcel-integrations/ha-oesterreichische-post)
+  (MIT) — tracking-number-based, ships against `graphqlPublic`. Source of the
+  `TrackingState` table in §6.
+- [thekumi/postat](https://github.com/thekumi/postat) — Python, scripts the same
+  B2C `SelfAsserted` journey, and reads tenant/policy from `SETTINGS.hosts`.
+- [KrauseFx/post-at-cli](https://github.com/KrauseFx/post-at-cli) — TypeScript,
+  independently arrives at `response_type=id_token token` + `prompt=none` +
+  `response_mode=fragment` against `graphqlAuthenticated`. Persists only the
+  access token and re-logs-in hourly; persisting the SSO cookie instead (§4) is
+  what makes unattended operation possible.
+
 ### 3.2 The authenticated API
 
 Discovered by analysing a HAR capture of an authenticated browser session.
@@ -90,8 +107,11 @@ exchanges for a fresh access token.
 Drives the B2C sign-in journey directly, with `rememberMe=true`:
 
 1. `GET {b2c}/oauth2/v2.0/authorize` with `response_type=id_token token`,
-   `response_mode=fragment`. Parse the injected `SETTINGS` blob for `csrf` and
-   `transId`.
+   `response_mode=fragment`. Parse the injected `SETTINGS` blob for `csrf`,
+   `transId` and `hosts` — tenant and policy are read from `SETTINGS.hosts`
+   rather than hardcoded, so a policy rename does not break the login. The
+   hardcoded values in `const.py` are only the starting point for the first
+   request.
 2. `POST {b2c}/SelfAsserted?tx=…&p=…` with `request_type=RESPONSE`,
    `signInName`, `password` and the `X-CSRF-TOKEN` header. A JSON `status` of
    `200` means the credentials were accepted.
@@ -128,9 +148,22 @@ README rather than hidden.
 
 ## 5. API surface
 
-Two GraphQL operations, both already observed in the real client.
+Two endpoints, deliberately split by role.
 
-**List** — one call per poll:
+The **authenticated** endpoint is used only to discover *which* parcels are in
+the account. Everything else comes from Post's **public keyless** endpoint,
+`https://api.post.at/sendungen/sv/graphqlPublic`, keyed on the tracking number
+alone.
+
+This matters because the public endpoint is the stable one: it has
+introspection enabled, it is what the consumer tracking page uses, and
+`ha-oesterreichische-post` already ships against it. It also carries
+`trackingStateKey`, `text`, `textEn` and `stateInfo`, which the authenticated
+endpoint has never been observed to return. Keeping enrichment on the public
+surface shrinks the fragile, undocumented, unsanctioned dependency to a single
+query returning a list of numbers.
+
+**List** (authenticated) — one call per poll:
 
 ```graphql
 sendungen(postProcessingOptions: {
@@ -146,16 +179,26 @@ sendungen(postProcessingOptions: {
 }
 ```
 
-**Detail** — one call per *active* parcel, to fill in what the list omits
-(`sender` comes back null there, and `weight`/`dimensions` are absent
-altogether):
+Only `sendungsnummer` and `bezeichnung` are actually consumed from this
+response; the rest is requested so a poll still degrades to something useful if
+the public endpoint does not yet know a freshly created parcel.
+
+**Detail** (public, keyless) — one call per *active* parcel. Sent in the
+variable form; inline arguments are refused:
 
 ```graphql
-einzelsendung(sendungsnummer: "…") {
-  sendungsnummer status bezeichnung sender preshipper weight
-  dimensions { height width length }
-  estimatedDelivery { startDate endDate startTime endTime }
-  sendungsEvents { timestamp status reasontypecode trackingDesc eventPlaceName eventpostalcode }
+query ShipmentPublic($id: String!) {
+  einzelsendung(sendungsnummer: $id) {
+    status weight deliveryType branchkey
+    estimatedDeliveryDate estimatedDeliveryDateText
+    estimatedDelivery { startDate endDate startTime endTime }
+    dimensions { height length width }
+    shipper { name postalCode city country }
+    sendungsEvents {
+      trackingStateKey trackingState trackingDesc text textEn timestamp
+      eventcountry eventpostalcode eventPlaceName
+    }
+  }
 }
 ```
 
@@ -164,6 +207,10 @@ parcels in flight, typically zero to three.
 
 `recipientAddress`, `packageRedirections`, `paymentInformation` and
 `customsInformation` are deliberately not requested.
+
+A parcel the public endpoint returns as `null` (known to the account but not yet
+scanned) keeps the label and tracking number from the list response and reports
+`unknown` until Post scans it.
 
 ## 6. Status mapping
 
@@ -176,22 +223,50 @@ registered | in_transit | out_for_delivery | at_pickup_point
 delivered  | returning  | problem          | unknown
 ```
 
-Confirmed mappings, from observed data:
+### 6.1 Map on `trackingStateKey`, not `status` or `reasontypecode`
 
-| Post | Canonical |
+The parcel's status is taken from the newest event's `trackingStateKey`, a
+stable semantic key such as `deliveryHandOver`. Post's own app upper-snakes it
+(`DELIVERY_HAND_OVER`) and resolves it against its `TrackingState` enum; this
+integration applies the same transform.
+
+The two alternatives were both rejected:
+
+- The top-level `status` field (`AN`, `ZU`) is too coarse — it cannot express
+  `out_for_delivery` or `at_pickup_point`.
+- `reasontypecode` (`AO`, `AT`, `EZ`, `ON`, `SE`, `UPB`, `XA`, `ZA`, `ZPB`) is
+  undocumented anywhere public, and no project that consumes it has mapped it.
+  `BlvckBytes/postrack` annotates the field "meaning yet unknown". The same
+  event that reports `reasontypecode: AO` reports
+  `trackingStateKey: deliveryHandOver`, which is self-describing.
+
+### 6.2 The table
+
+Post's `TrackingState` vocabulary, as lifted from Post's own app by
+[ha-oesterreichische-post](https://github.com/ha-parcel-integrations/ha-oesterreichische-post)
+(MIT). Credit that project in the source comment and the README.
+
+| `trackingStateKey` (upper-snaked) | Canonical |
 | --- | --- |
-| `AN` | `registered` |
-| `ZU` | `delivered` |
+| `PENDING_INFORMATION`, `PARCEL_STAMP`, `AVISO`, `ALLES_POST` | `registered` |
+| `DELIVERY_HAND_OVER`, `IN_DISTRIBUTION`, `CUSTOMS_CLEARANCE`, `DELIVERY_IN_CUSTOMS` | `in_transit` |
+| `IN_DELIVERY` | `out_for_delivery` |
+| `NOTIFIED`, `READY_FOR_PICK_UP`, `READY_FOR_PICK_UP_STATION`, `READY_FOR_PICK_UP_POINT`, `READY_FOR_PICK_UP_BOX` | `at_pickup_point` |
+| `DELIVERED`, `DELIVERY_PARKED` | `delivered` |
+| `DELIVERY_IN_RETURN` | `returning` |
+| `DELIVERY_DELAYED`, `DELIVERY_INTERUPTED`, `NOT_REACHABLE` | `problem` |
 
-Only those two codes have been observed in a real account. Every other code maps
-to `unknown` and logs a one-shot warning naming it, with a link to open an issue.
-`raw_status` always carries Post's original value.
+`DELIVERY_INTERUPTED` is Post's own misspelling and must be kept verbatim.
+`UNKNOWN` is deliberately absent: it is the app's own fallback, so seeing it on
+the wire means the vocabulary moved, and it should surface as an unmapped value.
 
-An unmapped code must report `unknown`, never a guess. A wrong `delivered` is
+Every unrecognised key maps to `unknown` and logs a one-shot warning naming it.
+An unmapped key must report `unknown`, never a guess — a wrong `delivered` is
 worse than an honest `unknown`.
 
-Observed event `reasontypecode` values, not yet mapped: `AO`, `AT`, `EZ`, `ON`,
-`SE`, `UPB`, `XA`, `ZA`, `ZPB`.
+`raw_status` carries the original `trackingStateKey`; `status_text` carries
+Post's own `textEn` (for example `Item accepted`), which needs no mapping and
+is the friendliest thing to put on a dashboard.
 
 ## 7. Entities and events
 
@@ -206,10 +281,14 @@ A single service device, "Post.at", carrying:
 Each entry in `parcels[]`:
 
 ```
-sendungsnummer, bezeichnung, status, raw_status,
-eta_start, eta_end, eta_time, sender, weight, dimensions,
-last_event { timestamp, place, code }, url
+sendungsnummer, bezeichnung, status, raw_status, status_text,
+eta_start, eta_end, eta_time, eta_text, sender, weight, dimensions,
+last_event { timestamp, place, state_key, text }, url
 ```
+
+`status_text` is Post's own `textEn` and `eta_text` its own
+`estimatedDeliveryDateText`; neither needs mapping and both read well on a
+dashboard.
 
 No address fields. `recipientAddress` is the user's own name and street on every
 parcel; it adds nothing to a dashboard and would otherwise land in the recorder
@@ -309,8 +388,14 @@ the `post_at` domain.
 - **Terms of service.** Automating access to the logged-in account area may
   conflict with Post's terms. This is a decision for the repository owner before
   publishing to HACS, not a technical question.
-- **Status vocabulary is 2 codes deep.** Real coverage only arrives as parcels
-  move through states nobody has observed yet.
+- **`trackingStateKey` is unverified on the authenticated endpoint.** This is
+  why enrichment reads from the public endpoint instead (§5). If a parcel ever
+  appears in the account that the public endpoint will not resolve, it degrades
+  to `unknown` rather than failing the poll.
+- **The status table is second-hand.** It was lifted from Post's app by another
+  project, not observed here; only `DELIVERY_HAND_OVER` has been seen against a
+  real parcel in this account. Wrong rows are possible and will surface as
+  visibly wrong statuses rather than errors.
 
 ## 13. Milestone 0 — verify before building
 
