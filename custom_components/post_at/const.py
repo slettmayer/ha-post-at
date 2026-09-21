@@ -69,8 +69,16 @@ CONF_SSO_COOKIE_VALUE = "sso_cookie_value"
 GRAPHQL_AUTHENTICATED_URL = "https://api.post.at/sendungen/sv/graphqlAuthenticated"
 GRAPHQL_PUBLIC_URL = "https://api.post.at/sendungen/sv/graphqlPublic"
 
-# The app's own deep link into the consumer tracking page.
+# Deep links into the consumer site. These two follow *opposite* conventions,
+# verified against the live site -- do not "tidy" them into one shape:
+#
+#   /s/sendungsdetails?snr=...     200   /en/... and /de/... both 404
+#   /en/s/item-overview            307   /s/... and /de/... both 404
+#
+# The 307 on item-overview is the language hop; it sets `postat#lang=en` and
+# lands on the account's shipment list.
 TRACKING_URL = "https://www.post.at/s/sendungsdetails?snr={tracking_code}"
+ACCOUNT_URL = "https://www.post.at/en/s/item-overview"
 
 LIST_ELEMENT_COUNT = 25
 

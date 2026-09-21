@@ -15,6 +15,11 @@ First release informed by real account data.
 - `weight` and `dimensions` are confirmed **kilograms and centimetres**,
   against a real 5.85 kg / 80×53×32 parcel. The "unverified" caveat is gone.
 - Documented that `sender` is `null` on most consumer parcels.
+- **Fixed the device's "Visit" link.** It pointed at
+  `https://www.post.at/s/item-overview`, which 404s; the working URL carries a
+  language segment (`/en/s/item-overview`). The per-parcel link is the
+  opposite — `/s/sendungsdetails` works and `/en/...` 404s — so the two are
+  deliberately inconsistent and now pinned by a test.
 
 ## 0.1.1
 

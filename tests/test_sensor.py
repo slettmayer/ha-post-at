@@ -157,3 +157,30 @@ async def test_unload_removes_the_entities(hass):
 
     state = hass.states.get("sensor.osterreichische_post_parcels_in_delivery")
     assert state is None or state.state == "unavailable"
+
+
+async def test_device_link_points_at_a_url_that_resolves(hass):
+    """post.at's two deep links follow opposite conventions.
+
+    `/en/s/item-overview` works and `/s/item-overview` 404s, while the parcel
+    link is the other way round: `/s/sendungsdetails` works and `/en/...`
+    404s. Both verified against the live site; this pins the asymmetry so a
+    later "consistency" cleanup cannot silently break one of them.
+    """
+    from custom_components.post_at.const import ACCOUNT_URL, TRACKING_URL
+
+    entry = await setup_integration(hass)
+    device = dr.async_get(hass).async_get(
+        next(
+            iter(
+                e.device_id
+                for e in er.async_entries_for_config_entry(
+                    er.async_get(hass), entry.entry_id
+                )
+            )
+        )
+    )
+
+    assert device.configuration_url == ACCOUNT_URL
+    assert ACCOUNT_URL.startswith("https://www.post.at/en/")
+    assert "/en/" not in TRACKING_URL
