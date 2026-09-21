@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.1.3
+
+- **The reply language is now selectable**, via **Configure** on the
+  integration. Post localises on the `Accept-Language` header, which this
+  integration never sent — so place names, delivery estimates and event
+  descriptions came back German even on an English Home Assistant. Only German
+  and English exist; anything else Post serves as German. The default is German
+  for a German Home Assistant and English otherwise, and changing it reloads
+  the entry so cached delivered parcels are re-fetched rather than left in the
+  old language.
+- **The disclaimer now states the terms question plainly.** The only terms of
+  use Österreichische Post publishes for an online surface cover ELLA, their
+  business portal, which is open to companies only and carries no clause on
+  automated access; nothing was found governing the private account area this
+  integration uses. Nothing permits this and nothing forbids it. The README
+  says so, and says use at your own risk, instead of implying the matter was
+  settled.
+
 ## 0.1.2
 
 First release informed by real account data.

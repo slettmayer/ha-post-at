@@ -106,7 +106,7 @@ class PostAtCoordinator(TimestampDataUpdateCoordinator[list[Parcel]]):
         if (settled := self._settled.get(code)) is not None:
             return settled
         detail = await self._client.async_get_public_detail(code)
-        parcel = normalize_parcel(summary, detail)
+        parcel = normalize_parcel(summary, detail, self._client.language)
         if not parcel.is_active:
             self._settled[code] = parcel
         return parcel

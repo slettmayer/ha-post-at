@@ -4,6 +4,11 @@
 holds. Everything else comes from ``graphqlPublic``, which is keyless,
 introspectable and already relied upon by a shipped integration -- and which,
 unlike the authenticated endpoint, is known to return ``trackingStateKey``.
+
+Both endpoints localise their reply on ``Accept-Language`` -- place names,
+delivery-estimate prose and the human-readable state. Post serves German to
+anything that is not an ``en`` prefix, including a request with no header at
+all, so it is always sent explicitly.
 """
 
 from __future__ import annotations
@@ -31,10 +36,25 @@ class PostAtApiError(Exception):
 class PostAtApiClient:
     """Reads the account's shipment list and each parcel's public detail."""
 
-    def __init__(self, session: aiohttp.ClientSession, auth: PostAtSession) -> None:
-        """Store the HTTP session and the authenticated B2C session."""
+    def __init__(
+        self,
+        session: aiohttp.ClientSession,
+        auth: PostAtSession,
+        language: str,
+    ) -> None:
+        """Store the HTTP session, the B2C session and the reply language."""
         self._session = session
         self._auth = auth
+        self._language = language
+
+    @property
+    def language(self) -> str:
+        """The language Post is asked to answer in.
+
+        Exposed so the coordinator can normalise parcels in the same language
+        it asked for, rather than deriving it a second time from the entry.
+        """
+        return self._language
 
     async def async_list_shipments(self) -> list[dict[str, Any]]:
         """Return the account's received shipments, newest first."""
@@ -45,6 +65,7 @@ class PostAtApiClient:
             headers={
                 "authorization": f"Bearer {token}",
                 "origin": "https://www.post.at",
+                "accept-language": self._language,
             },
         ) as response:
             if response.status == 401:
@@ -65,6 +86,7 @@ class PostAtApiClient:
         async with self._session.post(
             GRAPHQL_PUBLIC_URL,
             json={"query": DETAIL_QUERY, "variables": {"id": tracking_code}},
+            headers={"accept-language": self._language},
         ) as response:
             status = response.status
             payload = await _read_json(response)

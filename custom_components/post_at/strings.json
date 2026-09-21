@@ -27,6 +27,28 @@
       "reauth_successful": "Signed in again successfully."
     }
   },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Österreichische Post options",
+        "description": "Post returns place names, delivery estimates and event descriptions in this language. Only German and English are available.",
+        "data": {
+          "language": "Language"
+        },
+        "data_description": {
+          "language": "Defaults to German for a German Home Assistant, English otherwise."
+        }
+      }
+    }
+  },
+  "selector": {
+    "language": {
+      "options": {
+        "de": "German",
+        "en": "English"
+      }
+    }
+  },
   "entity": {
     "sensor": {
       "parcels_in_delivery": {

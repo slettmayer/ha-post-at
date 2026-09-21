@@ -8,16 +8,30 @@ from typing import Any
 
 import aiohttp
 import voluptuous as vol
-from homeassistant.config_entries import ConfigFlow, ConfigFlowResult
+from homeassistant.config_entries import (
+    ConfigEntry,
+    ConfigFlow,
+    ConfigFlowResult,
+    OptionsFlow,
+)
 from homeassistant.const import CONF_PASSWORD
+from homeassistant.core import callback
 from homeassistant.helpers.aiohttp_client import async_create_clientsession
+from homeassistant.helpers.selector import (
+    SelectSelector,
+    SelectSelectorConfig,
+    SelectSelectorMode,
+)
 
 from .auth import PostAtAuthError, PostAtInvalidCredentials, PostAtSession, SsoCookie
 from .const import (
     CONF_EMAIL,
+    CONF_LANGUAGE,
     CONF_SSO_COOKIE_NAME,
     CONF_SSO_COOKIE_VALUE,
     DOMAIN,
+    LANGUAGES,
+    default_language,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -32,6 +46,12 @@ class PostAtConfigFlow(ConfigFlow, domain=DOMAIN):
     """Sign in once, keep the session, forget the password."""
 
     VERSION = 1
+
+    @staticmethod
+    @callback
+    def async_get_options_flow(entry: ConfigEntry) -> PostAtOptionsFlow:
+        """Return the options flow; language is the only setting."""
+        return PostAtOptionsFlow()
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
@@ -114,3 +134,35 @@ class PostAtConfigFlow(ConfigFlow, domain=DOMAIN):
             _LOGGER.exception("Unexpected error signing in to post.at")
             return None, "unknown"
         return cookie, None
+
+
+class PostAtOptionsFlow(OptionsFlow):
+    """Lets the language be changed without signing in again.
+
+    Deliberately not part of the initial setup form: the default derived from
+    Home Assistant's own language is right for nearly everyone, and setup
+    should stay down to the two fields that actually need a human.
+    """
+
+    async def async_step_init(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Show the language picker and store the choice."""
+        if user_input is not None:
+            return self.async_create_entry(data=user_input)
+
+        current = self.config_entry.options.get(CONF_LANGUAGE) or default_language(
+            self.hass.config.language
+        )
+        schema = vol.Schema(
+            {
+                vol.Required(CONF_LANGUAGE, default=current): SelectSelector(
+                    SelectSelectorConfig(
+                        options=LANGUAGES,
+                        mode=SelectSelectorMode.DROPDOWN,
+                        translation_key=CONF_LANGUAGE,
+                    )
+                )
+            }
+        )
+        return self.async_show_form(step_id="init", data_schema=schema)

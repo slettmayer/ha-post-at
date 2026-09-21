@@ -27,6 +27,7 @@ third-party collector of any kind.
 - [Requirements](#requirements)
 - [Installation](#installation)
 - [Configuration](#configuration)
+  - [Language](#language)
 - [Entities](#entities)
 - [The `parcels` attribute](#the-parcels-attribute)
 - [Events](#events)
@@ -102,8 +103,22 @@ and restart Home Assistant.
 **Settings → Devices & Services → Add Integration → Österreichische Post
 (Account)**, then enter the email and password you use on post.at.
 
-There are no options. Polling runs every 15 minutes while a parcel is moving
-and every 60 minutes when nothing is.
+Polling runs every 15 minutes while a parcel is moving and every 60 minutes
+when nothing is. That is not configurable: a parcel feed has one sensible
+cadence, and the endpoint is undocumented enough without being hammered.
+
+### Language
+
+Post serves **German or English** — no other language exists — and it picks by
+the `Accept-Language` header, not by your account settings. It affects place
+names (`Logistikzentrum Kärnten, AT` vs `Logistics centre Carinthia, AT`),
+delivery estimates (`Voraussichtlich morgen` vs `Approximately tomorrow`) and
+event descriptions.
+
+The default is **German for a German Home Assistant and English for everything
+else**. To change it: **Settings → Devices & Services → Österreichische Post
+(Account) → Configure**. The integration reloads and re-fetches, so parcels
+switch language immediately.
 
 ## Entities
 
@@ -132,10 +147,10 @@ blob into the recorder on every poll.
 | `status` | Canonical status — see [the table](#parcel-status-reference) |
 | `trackingStateKey` | Post's own key, **verbatim** (`deliveryHandOver`) |
 | `raw_status` | The same key upper-snaked (`DELIVERY_HAND_OVER`) |
-| `status_text` | Post's own wording (`Item accepted`) |
+| `status_text` | Post's own wording (`Item accepted`) — see [Language](#language) |
 | `eta_start` / `eta_end` | Expected delivery window, ISO 8601 |
 | `eta_time` | Expected time of day, when Post gives one |
-| `eta_text` | Post's own phrasing (`Voraussichtlich morgen`) |
+| `eta_text` | Post's own phrasing (`Approximately tomorrow`) — see [Language](#language) |
 | `sender` | Shipper name. Post leaves this `null` on most consumer parcels — do not rely on it |
 | `weight` | Kilograms |
 | `dimensions` | `height` / `length` / `width`, in centimetres |
@@ -258,9 +273,36 @@ timings, so they are safe to attach to an issue.
 
 ## Disclaimer
 
-This integration uses undocumented endpoints of Österreichische Post's consumer
-website. It is not affiliated with, endorsed by, or supported by
-Österreichische Post AG. It may break at any time.
+**Use at your own risk.**
+
+This integration is not affiliated with, endorsed by, or supported by
+Österreichische Post AG. It is an independent project that drives
+**undocumented, unsanctioned endpoints** of Post's consumer website, using your
+own credentials to read your own account.
+
+**The terms are unknown.** Österreichische Post publishes terms of use for
+exactly one of its online surfaces:
+[Nutzungsbedingungen ELLA](https://ella.post.at/nutzungsbedingungen), governing
+their **business** portal. Those apply only to `Unternehmer*innen` — ELLA's own
+FAQ states that registering it with a private post.at account is not permitted
+— and they carry no clause about automated access in any case. We found nothing
+governing the private account area this integration uses, or these endpoints.
+
+So: nothing permits this and nothing forbids it. That is an absence of rules,
+not permission, and it is not legal advice. If automated access to your post.at
+account matters to you, satisfy yourself before installing.
+
+Consequences you accept by using it:
+
+- Post may change, gate or withdraw these endpoints at any time, without
+  notice, and the integration will simply stop working.
+- Post may take a view on automated account access that this project cannot
+  anticipate, including action against the account involved.
+- Your post.at session cookie is stored in Home Assistant — see
+  [Security](#security).
+
+The maintainers provide no warranty of any kind, as stated in the
+[MIT licence](LICENSE).
 
 ## Credits
 

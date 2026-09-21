@@ -55,7 +55,7 @@ access token via `prompt=none`.
 | `api.py` | The two GraphQL surfaces |
 | `models.py` / `parcels.py` | The `Parcel` dataclass and its normalisation |
 | `coordinator.py` | Polling, dynamic interval, 401 retry, events |
-| `config_flow.py` | User and reauth flows |
+| `config_flow.py` | User and reauth flows, plus the language options flow |
 | `sensor.py` / `entity.py` | Three sensors on one service device |
 | `diagnostics.py` | Redacted diagnostics |
 
@@ -81,6 +81,18 @@ no consumer has managed to map). The table in `status.py` is Post's own
 `TrackingState` enum, lifted from Post's app by the MIT-licensed
 [ha-oesterreichische-post](https://github.com/ha-parcel-integrations/ha-oesterreichische-post)
 and reproduced with thanks.
+
+## Language
+
+Post localises on the **`Accept-Language` request header**, not on the account
+or the URL, and offers only `de` and `en` — anything that is not an `en`
+prefix, including no header at all, is served German. Localised:
+`estimatedDeliveryDateText`, `trackingState`, `trackingDesc`, `eventPlaceName`.
+**Not** localised: `text` is always German and `textEn` always English, so
+`parcels._event_text` picks between them itself. The client owns the language
+and the coordinator reads it back via `client.language`, so there is one source
+of truth. Changing the option reloads the entry — `_settled` caches text Post
+already rendered.
 
 ## Two traps that already bit
 

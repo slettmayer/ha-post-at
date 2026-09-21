@@ -7,9 +7,12 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.post_at.const import (
     CONF_EMAIL,
+    CONF_LANGUAGE,
     CONF_SSO_COOKIE_NAME,
     CONF_SSO_COOKIE_VALUE,
     DOMAIN,
+    LANGUAGE_DE,
+    LANGUAGE_EN,
 )
 
 SUMMARIES = [
@@ -184,3 +187,25 @@ async def test_device_link_points_at_a_url_that_resolves(hass):
     assert device.configuration_url == ACCOUNT_URL
     assert ACCOUNT_URL.startswith("https://www.post.at/en/")
     assert "/en/" not in TRACKING_URL
+
+
+async def test_setup_asks_post_in_the_home_assistant_language(hass):
+    """The header is the whole mechanism; without it Post replies in German."""
+    hass.config.language = "de"
+    with patch("custom_components.post_at.PostAtApiClient") as client:
+        await setup_integration(hass)
+
+    assert client.call_args.args[2] == LANGUAGE_DE
+
+
+async def test_the_language_option_overrides_the_home_assistant_language(hass):
+    hass.config.language = "de"
+    entry = await setup_integration(hass)
+
+    with patch("custom_components.post_at.PostAtApiClient") as client:
+        hass.config_entries.async_update_entry(
+            entry, options={CONF_LANGUAGE: LANGUAGE_EN}
+        )
+        await hass.async_block_till_done()
+
+    assert client.call_args.args[2] == LANGUAGE_EN
