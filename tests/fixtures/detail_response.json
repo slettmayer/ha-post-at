@@ -1,0 +1,37 @@
+{
+  "data": {
+    "einzelsendung": {
+      "status": "AN",
+      "weight": 1.25,
+      "branchkey": null,
+      "estimatedDeliveryDate": "2026-09-22",
+      "estimatedDeliveryDateText": "Voraussichtlich morgen",
+      "estimatedDelivery": {
+        "startDate": "2026-09-22T00:00:00.000Z",
+        "endDate": "2026-09-23T00:00:00.000Z",
+        "startTime": null,
+        "endTime": null
+      },
+      "dimensions": {"height": 10, "length": 30, "width": 20},
+      "shipper": {
+        "name": "Example Sender",
+        "postalCode": "1010",
+        "city": "Wien",
+        "country": "AT"
+      },
+      "sendungsEvents": [
+        {
+          "trackingStateKey": "deliveryHandOver",
+          "trackingState": "Aufgegeben",
+          "trackingDesc": "Sendung zum Versand angenommen",
+          "text": "Sendungsannahme durchgeführt",
+          "textEn": "Item accepted",
+          "timestamp": "2026-09-21T08:35:23.000+00:00",
+          "eventcountry": "AT",
+          "eventpostalcode": "9010",
+          "eventPlaceName": "PLZ 9010"
+        }
+      ]
+    }
+  }
+}

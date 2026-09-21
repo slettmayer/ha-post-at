@@ -53,3 +53,57 @@ TOKEN_EXPIRY_SKEW_SECONDS = 300
 CONF_EMAIL = "email"
 CONF_SSO_COOKIE_NAME = "sso_cookie_name"
 CONF_SSO_COOKIE_VALUE = "sso_cookie_value"
+
+
+# --- GraphQL -----------------------------------------------------------------
+#
+# Two endpoints, split by role. The authenticated one is used ONLY to discover
+# which tracking numbers the account holds; it is undocumented and
+# unsanctioned. Everything else comes from the public keyless endpoint, which
+# has introspection enabled, is what the consumer tracking page uses, and is
+# the only one known to return `trackingStateKey`.
+GRAPHQL_AUTHENTICATED_URL = "https://api.post.at/sendungen/sv/graphqlAuthenticated"
+GRAPHQL_PUBLIC_URL = "https://api.post.at/sendungen/sv/graphqlPublic"
+
+# The app's own deep link into the consumer tracking page.
+TRACKING_URL = "https://www.post.at/s/sendungsdetails?snr={tracking_code}"
+
+LIST_ELEMENT_COUNT = 25
+
+# Only `sendungsnummer` and `bezeichnung` are consumed; the rest is requested
+# so a poll still degrades to something useful when the public endpoint does
+# not yet know a freshly created parcel.
+LIST_QUERY = f"""
+query {{
+  sendungen: sendungen(postProcessingOptions: {{
+    elementCount: {LIST_ELEMENT_COUNT}, sortByDate: DESCENDING, paging: RECEIVE
+  }}) {{
+    totalSendungen
+    empfangsSendungen
+    sendungen {{
+      sendungsnummer
+      bezeichnung
+      status
+      isRecipient
+    }}
+  }}
+}}
+"""
+
+# The public endpoint accepts only the variable form; inline arguments are
+# refused. `recipientAddress` is deliberately never requested.
+DETAIL_QUERY = """
+query ShipmentPublic($id: String!) {
+  einzelsendung(sendungsnummer: $id) {
+    status weight branchkey
+    estimatedDeliveryDate estimatedDeliveryDateText
+    estimatedDelivery { startDate endDate startTime endTime }
+    dimensions { height length width }
+    shipper { name postalCode city country }
+    sendungsEvents {
+      trackingStateKey trackingState trackingDesc text textEn timestamp
+      eventcountry eventpostalcode eventPlaceName
+    }
+  }
+}
+"""

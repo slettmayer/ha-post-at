@@ -1,0 +1,22 @@
+{
+  "data": {
+    "sendungen": {
+      "totalSendungen": 2,
+      "empfangsSendungen": 2,
+      "sendungen": [
+        {
+          "sendungsnummer": "0000000000000000000001",
+          "bezeichnung": "Test Parcel One",
+          "status": "AN",
+          "isRecipient": true
+        },
+        {
+          "sendungsnummer": "0000000000000000000002",
+          "bezeichnung": "Test Parcel Two",
+          "status": "ZU",
+          "isRecipient": true
+        }
+      ]
+    }
+  }
+}
