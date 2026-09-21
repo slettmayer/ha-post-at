@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import aiohttp
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_create_clientsession
 
@@ -13,9 +14,10 @@ from .coordinator import PostAtConfigEntry, PostAtCoordinator
 
 async def async_setup_entry(hass: HomeAssistant, entry: PostAtConfigEntry) -> bool:
     """Set up the post.at account from a config entry."""
-    # A private session: the B2C journey sets cookies that have no business in
-    # Home Assistant's shared jar.
-    session = async_create_clientsession(hass)
+    # A private session, and deliberately a cookie-less one. aiohttp's
+    # CookieJar mangles B2C's cookies (see auth.cookie_header), so auth.py
+    # tracks them itself and writes the Cookie header by hand.
+    session = async_create_clientsession(hass, cookie_jar=aiohttp.DummyCookieJar())
     auth = PostAtSession(
         session,
         SsoCookie(entry.data[CONF_SSO_COOKIE_NAME], entry.data[CONF_SSO_COOKIE_VALUE]),

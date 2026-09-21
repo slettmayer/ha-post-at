@@ -96,12 +96,10 @@ class PostAtSession:
             page = await response.text()
         settings = _parse_settings(page)
 
-        # Prefer the tenant and policy the page itself names, so a policy
-        # rename does not break the login; the compiled-in values are only the
-        # starting point for this first request.
-        hosts = settings.get("hosts") or {}
-        tenant = str(hosts.get("tenant") or B2C_TENANT).strip("/")
-        policy = str(hosts.get("policy") or B2C_POLICY)
+        # Prefer the journey the page itself names, so a policy rename does
+        # not break the login; the compiled-in values are only the starting
+        # point for this first request.
+        base, policy = _journey_base(settings)
         csrf = settings.get("csrf")
         trans_id = settings.get("transId")
         if not csrf or not trans_id:
@@ -109,7 +107,7 @@ class PostAtSession:
 
         query = urlencode({"tx": trans_id, "p": policy})
         async with self._session.post(
-            f"{B2C_HOST}/{tenant}/{policy}/SelfAsserted?{query}",
+            f"{base}/SelfAsserted?{query}",
             data={
                 "request_type": "RESPONSE",
                 "signInName": email,
@@ -120,7 +118,13 @@ class PostAtSession:
                 "x-requested-with": "XMLHttpRequest",
                 "origin": B2C_HOST,
                 "referer": authorize,
+                "cookie": cookie_header(found),
             },
+            # The Cookie header is set explicitly, and aiohttp keeps explicit
+            # headers across redirects -- including origin-changing ones. This
+            # response is expected to be JSON, so never follow a redirect and
+            # never risk handing B2C's session cookies to another host.
+            allow_redirects=False,
         ) as response:
             _absorb_cookies(response, found)
             body = await response.text()
@@ -143,8 +147,8 @@ class PostAtSession:
             }
         )
         async with self._session.get(
-            f"{B2C_HOST}/{tenant}/{policy}/api/{api}/confirmed?{confirm_query}",
-            headers={"referer": authorize},
+            f"{base}/api/{api}/confirmed?{confirm_query}",
+            headers={"referer": authorize, "cookie": cookie_header(found)},
             allow_redirects=False,
         ) as response:
             _absorb_cookies(response, found)
@@ -169,7 +173,7 @@ class PostAtSession:
         )
         async with self._session.get(
             url,
-            headers={"cookie": f"{self._cookie.name}={self._cookie.value}"},
+            headers={"cookie": cookie_header({self._cookie.name: self._cookie.value})},
             allow_redirects=False,
         ) as response:
             location = response.headers.get("Location", "")
@@ -232,6 +236,23 @@ class PostAtSession:
         return None
 
 
+def _journey_base(settings: dict[str, Any]) -> tuple[str, str]:
+    """Return the journey's URL prefix and policy name from ``SETTINGS``.
+
+    ``hosts.tenant`` is **not** a tenant id -- it is a path prefix that already
+    contains the policy, e.g. ``/f098c632-.../B2C_1A_signup_signin``. Appending
+    the policy to it again yields a doubled segment and a 404, which is exactly
+    how this went wrong the first time. The policy is returned separately only
+    because it is also needed as the ``p`` query parameter.
+    """
+    hosts = settings.get("hosts") or {}
+    prefix = str(hosts.get("tenant") or "").strip()
+    policy = str(hosts.get("policy") or B2C_POLICY)
+    if not prefix:
+        return f"{B2C_HOST}/{B2C_TENANT}/{policy}", policy
+    return f"{B2C_HOST}/{prefix.strip('/')}", policy
+
+
 def _is_sso_cookie(name: str) -> bool:
     """Whether a cookie name is B2C's SSO cookie.
 
@@ -241,16 +262,39 @@ def _is_sso_cookie(name: str) -> bool:
 
 
 def _absorb_cookies(response: aiohttp.ClientResponse, into: dict[str, str]) -> None:
-    """Record every cookie a journey response sets."""
-    for raw in response.headers.getall("Set-Cookie", []):
-        jar = SimpleCookie()
-        try:
-            jar.load(raw)
-        except CookieError:  # pragma: no cover - malformed header from Post
-            _LOGGER.debug("Ignoring unparseable Set-Cookie from post.at")
-            continue
-        for name, morsel in jar.items():
-            into[name] = morsel.value
+    """Record every cookie this response and its redirect chain set.
+
+    ``response.headers`` only carries the final hop, so ``history`` is walked
+    too -- B2C sets its transaction cookies part-way through a redirect chain.
+    """
+    for hop in (*response.history, response):
+        for raw in hop.headers.getall("Set-Cookie", []):
+            jar = SimpleCookie()
+            try:
+                jar.load(raw)
+            except CookieError:  # pragma: no cover - malformed header from Post
+                _LOGGER.debug("Ignoring unparseable Set-Cookie from post.at")
+                continue
+            for name, morsel in jar.items():
+                into[name] = morsel.value
+
+
+def cookie_header(cookies: dict[str, str]) -> str:
+    """Serialise cookies verbatim for a ``Cookie`` request header.
+
+    Deliberately not left to aiohttp's ``CookieJar``. That jar round-trips
+    through :class:`http.cookies.SimpleCookie`, which quotes any value holding
+    characters outside the legal token set -- and B2C's values are full of
+    ``=``, ``+`` and ``/``, while one cookie name even contains a ``|``. Post
+    answers the resulting header with a bare ``Bad Request`` before it looks at
+    the credentials at all. Writing the header by hand, exactly as the browser
+    does, is the whole difference between a working login and a broken one.
+
+    The sessions this module is handed are therefore created with a
+    ``DummyCookieJar``; see ``async_create_clientsession`` in ``__init__.py``
+    and ``config_flow.py``.
+    """
+    return "; ".join(f"{name}={value}" for name, value in cookies.items())
 
 
 def _parse_settings(page: str) -> dict[str, Any]:

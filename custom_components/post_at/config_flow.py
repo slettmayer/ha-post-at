@@ -6,6 +6,7 @@ import logging
 from collections.abc import Mapping
 from typing import Any
 
+import aiohttp
 import voluptuous as vol
 from homeassistant.config_entries import ConfigFlow, ConfigFlowResult
 from homeassistant.const import CONF_PASSWORD
@@ -96,9 +97,12 @@ class PostAtConfigFlow(ConfigFlow, domain=DOMAIN):
         """Run the sign-in journey, translating failures into form errors.
 
         A private session is used so B2C's cookies never land in Home
-        Assistant's shared client session.
+        Assistant's shared client session, and a ``DummyCookieJar`` because
+        aiohttp's jar mangles B2C's cookies -- see ``auth.cookie_header``.
         """
-        session = async_create_clientsession(self.hass)
+        session = async_create_clientsession(
+            self.hass, cookie_jar=aiohttp.DummyCookieJar()
+        )
         try:
             cookie = await PostAtSession(session).async_login(email, password)
         except PostAtInvalidCredentials:
