@@ -1,5 +1,35 @@
 # Changelog
 
+## 0.1.4
+
+A review pass over the whole integration. Nothing here changes how it is set
+up or what it publishes; all of it is behaviour that was wrong in a state the
+happy path never reaches.
+
+- **The 401 retry now actually renews the token.** A rejected access token was
+  cached purely on the clock, so the one retry replayed the very token
+  post.at had just refused and failed identically — turning a recoverable
+  blip into a reauth prompt. The cached token is dropped before the retry.
+- **A returning parcel is no longer frozen.** Only delivered parcels are
+  final; a parcel on its way back to the sender is still being scanned, and
+  caching it meant its status and last event never moved again and no further
+  event ever fired for it.
+- **Diagnostics no longer fail on a broken entry.** Downloading diagnostics
+  for an entry that was unloaded, disabled or stuck retrying raised an error
+  instead of producing a file — precisely the state an entry is in when
+  diagnostics are asked for. The download now works in every state and
+  reports the entry's state alongside it.
+- **Events are ordered by instant, not by text.** Timestamps were compared as
+  strings, so a parcel whose events carry mixed UTC offsets — a cross-border
+  shipment — could pick an older event and roll its status backwards.
+- **A cleared sign-in cookie is no longer accepted as a session.** Post's
+  sign-in can end with a header that *deletes* the SSO cookie; that was stored
+  as though it were a credential, producing a sign-in that reported success
+  and then failed on the first poll. It now fails at sign-in, with a message
+  that says so.
+- Reauth no longer reloads the entry twice, which Home Assistant deprecates
+  today and stops allowing in 2026.12.
+
 ## 0.1.3
 
 - **The reply language is now selectable**, via **Configure** on the

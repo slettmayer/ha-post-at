@@ -48,3 +48,20 @@ async def test_diagnostics_report_coordinator_health(hass):
 async def test_diagnostics_are_json_serialisable(hass):
     entry = await setup_integration(hass)
     json.dumps(await async_get_config_entry_diagnostics(hass, entry))
+
+
+async def test_diagnostics_survive_an_unloaded_entry(hass):
+    """`runtime_data` is deleted on unload, and HA still serves the download.
+
+    An unloaded or `setup_retry` entry is exactly the state a user is in when
+    they are asked to attach diagnostics to an issue, so this must not 500.
+    """
+    entry = await setup_integration(hass)
+    assert await hass.config_entries.async_unload(entry.entry_id)
+    await hass.async_block_till_done()
+
+    result = await async_get_config_entry_diagnostics(hass, entry)
+
+    assert "entry" in result
+    assert "parcels" not in result
+    assert "user@example.invalid" not in json.dumps(result)

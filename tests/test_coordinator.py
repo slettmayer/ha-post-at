@@ -1,7 +1,7 @@
 """Polling, interval selection, the 401 retry and event emission."""
 
 from datetime import timedelta
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from homeassistant.exceptions import ConfigEntryAuthFailed
@@ -50,6 +50,9 @@ def _client(shipments, details, language=LANGUAGE_EN):
     client.async_get_public_detail = AsyncMock(
         side_effect=lambda code: details.get(code)
     )
+    # Sync on the real client, so an AsyncMock here would hand the coordinator
+    # a coroutine it never awaits.
+    client.invalidate_token = MagicMock()
     return client
 
 
@@ -336,3 +339,31 @@ async def test_parcels_are_normalised_in_the_language_the_client_asked_for(hass,
     await coordinator.async_refresh()
 
     assert coordinator.data[0].status_text == "auf Deutsch"
+
+
+async def test_the_401_retry_drops_the_rejected_token(hass, entry):
+    """Without this the retry replays the token post.at just rejected."""
+    client = _client([SUMMARY_ONE], {"0001": _detail("deliveryHandOver")})
+    client.async_list_shipments = AsyncMock(
+        side_effect=[PostAtAuthExpired("stale"), [SUMMARY_ONE]]
+    )
+    coordinator = PostAtCoordinator(hass, entry, client)
+    await coordinator.async_refresh()
+
+    assert client.invalidate_token.call_count == 1
+
+
+async def test_returning_parcels_are_re_enriched_every_poll(hass, entry):
+    """A returning parcel is inactive but still moving, so it is not settled.
+
+    Caching it would freeze its status and `last_event` for as long as it
+    stayed on the account list, and a reroute or a counter collection could
+    never take it to delivered.
+    """
+    client = _client([SUMMARY_ONE], {"0001": _detail("deliveryInReturn")})
+    coordinator = PostAtCoordinator(hass, entry, client)
+    await coordinator.async_refresh()
+    await coordinator.async_refresh()
+
+    assert coordinator.data[0].status is ParcelStatus.RETURNING
+    assert client.async_get_public_detail.await_count == 2

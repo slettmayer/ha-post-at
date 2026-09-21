@@ -95,12 +95,17 @@ class PostAtConfigFlow(ConfigFlow, domain=DOMAIN):
                 entry.data[CONF_EMAIL], user_input[CONF_PASSWORD]
             )
             if cookie is not None:
+                # The entry carries an update listener that reloads on any
+                # change, so the flow must not schedule a second reload of its
+                # own: Home Assistant logs a deprecation for that today and
+                # stops allowing it in 2026.12.0.
                 return self.async_update_reload_and_abort(
                     entry,
                     data_updates={
                         CONF_SSO_COOKIE_NAME: cookie.name,
                         CONF_SSO_COOKIE_VALUE: cookie.value,
                     },
+                    reload_even_if_entry_is_unchanged=False,
                 )
             errors["base"] = error or "unknown"
 

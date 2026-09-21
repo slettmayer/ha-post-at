@@ -91,13 +91,16 @@ class PostAtCoordinator(TimestampDataUpdateCoordinator[list[Parcel]]):
         """List shipments, renewing the token once if the first call is 401.
 
         The access token lives an hour and is renewed pre-emptively, so a 401
-        here means it was rejected early. One retry forces a fresh renewal; a
-        second failure is a genuinely dead session and becomes a reauth.
+        here means it was rejected early. Dropping the cached token forces the
+        retry to mint a new one -- without that the retry would replay the
+        token post.at just rejected and fail identically. A second failure is
+        a genuinely dead session and becomes a reauth.
         """
         try:
             return await self._client.async_list_shipments()
         except PostAtAuthExpired:
             _LOGGER.debug("post.at rejected the token; renewing once and retrying")
+            self._client.invalidate_token()
             return await self._client.async_list_shipments()
 
     async def _build(self, summary: dict[str, Any]) -> Parcel:
@@ -107,7 +110,11 @@ class PostAtCoordinator(TimestampDataUpdateCoordinator[list[Parcel]]):
             return settled
         detail = await self._client.async_get_public_detail(code)
         parcel = normalize_parcel(summary, detail, self._client.language)
-        if not parcel.is_active:
+        # Only `delivered` is final. A returning parcel is also `is_active ==
+        # False` -- it no longer counts towards the active poll cadence -- but
+        # it is still being scanned, and a reroute or a counter collection can
+        # still take it to delivered. Caching it here would freeze it forever.
+        if parcel.status is ParcelStatus.DELIVERED:
             self._settled[code] = parcel
         return parcel
 

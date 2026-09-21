@@ -411,3 +411,39 @@ async def test_every_cookie_bearing_request_refuses_redirects():
     assert carrying_cookies, "no request carried cookies -- test is not exercising it"
     for method, url, kwargs in carrying_cookies:
         assert kwargs.get("allow_redirects") is False, f"{method} {url}"
+
+
+async def test_invalidate_token_forces_a_fresh_renewal():
+    """The cache is clock-based, so only an explicit drop can renew early."""
+    with mock_aiohttp_client() as mocker:
+        mocker.get(AUTHORIZE, status=302, text="", headers={"Location": TOKEN_FRAGMENT})
+        auth = PostAtSession(
+            make_mock_session(mocker), SsoCookie("x-ms-cpim-sso:t_0", "V")
+        )
+        first = await auth.async_get_token()
+        auth.invalidate_token()
+        second = await auth.async_get_token()
+
+    assert first == second == "TOKEN_A"
+    assert len(mocker.mock_calls) == 2
+
+
+async def test_login_rejects_a_cleared_sso_cookie():
+    """A deletion header carries the SSO cookie's name and an empty value.
+
+    Persisting it would report a successful sign-in and then fail on the
+    first poll, sending the user round a reauth loop with no explanation.
+    """
+    cleared = {
+        "Set-Cookie": (
+            "x-ms-cpim-sso:t_0=; Path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT"
+        )
+    }
+    with mock_aiohttp_client() as mocker:
+        mocker.get(AUTHORIZE, status=200, text=SIGNIN_PAGE, headers=CSRF_HEADER)
+        mocker.post(SELF_ASSERTED, status=200, json={"status": "200"}, headers=cleared)
+        mocker.get(CONFIRMED, status=302, text="", headers={"Location": TOKEN_FRAGMENT})
+        with pytest.raises(PostAtAuthError, match="no SSO cookie"):
+            await PostAtSession(make_mock_session(mocker)).async_login(
+                "u@example.invalid", "pw"
+            )

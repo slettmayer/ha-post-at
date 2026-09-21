@@ -204,3 +204,43 @@ def test_each_language_falls_back_to_the_other_text():
         normalize_parcel(SUMMARY, only_english, LANGUAGE_DE).status_text
         == "Item accepted"
     )
+
+
+def test_newest_event_compares_instants_not_strings():
+    """Mixed offsets make a string sort pick the wrong event.
+
+    `09:00+02:00` is 07:00 UTC and sorts *after* `08:35+00:00` as text, which
+    would roll a cross-border parcel's status backwards.
+    """
+    detail = {
+        "sendungsEvents": [
+            {
+                "trackingStateKey": "deliveryHandOver",
+                "timestamp": "2026-09-21T09:00:00.000+02:00",
+                "textEn": "older",
+            },
+            {
+                "trackingStateKey": "delivered",
+                "timestamp": "2026-09-21T08:35:23.000+00:00",
+                "textEn": "newer",
+            },
+        ]
+    }
+    parcel = normalize_parcel(SUMMARY, detail, LANGUAGE_EN)
+
+    assert parcel.status_text == "newer"
+    assert parcel.status is ParcelStatus.DELIVERED
+
+
+def test_newest_event_tolerates_an_unparseable_timestamp():
+    detail = {
+        "sendungsEvents": [
+            {"trackingStateKey": "delivered", "timestamp": "nonsense", "textEn": "bad"},
+            {
+                "trackingStateKey": "deliveryHandOver",
+                "timestamp": "2026-09-21T08:00:00.000+00:00",
+                "textEn": "good",
+            },
+        ]
+    }
+    assert normalize_parcel(SUMMARY, detail, LANGUAGE_EN).status_text == "good"

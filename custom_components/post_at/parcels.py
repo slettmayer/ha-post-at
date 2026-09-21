@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 from .const import LANGUAGE_DE, TRACKING_URL, ParcelStatus
@@ -83,7 +83,25 @@ def _newest_event(events: Any) -> dict[str, Any] | None:
     dated = [e for e in events if isinstance(e, dict)]
     if not dated:
         return None
-    return max(dated, key=lambda e: str(e.get("timestamp") or ""))
+    return max(dated, key=_event_time)
+
+
+def _event_time(event: dict[str, Any]) -> datetime:
+    """Sort key for an event: its timestamp as a comparable instant.
+
+    Sorting the strings instead would only be correct while every event shares
+    one exact format and one offset. It does not: ``09:00:00.000+02:00`` is
+    07:00 UTC and sorts *after* ``08:35:23.000+00:00``, so a shipment whose
+    events carry mixed offsets -- a cross-border parcel -- would pick an older
+    event and roll the status backwards, the very thing the sort prevents.
+
+    An unparseable timestamp sorts oldest, and a naive one is read as UTC:
+    both only affect ordering, never a published value.
+    """
+    parsed = _parse_dt(event.get("timestamp"))
+    if parsed is None:
+        return datetime.min.replace(tzinfo=UTC)
+    return parsed if parsed.tzinfo else parsed.replace(tzinfo=UTC)
 
 
 def _event_text(event: dict[str, Any] | None, language: str) -> str | None:

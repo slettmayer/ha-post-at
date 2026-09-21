@@ -161,6 +161,17 @@ class PostAtSession:
         self._expires_at = 0.0
         return cookie
 
+    def invalidate_token(self) -> None:
+        """Drop the cached access token so the next call mints a fresh one.
+
+        The cache is purely clock-based, so a token post.at rejects early --
+        revoked, or invalidated by a password change -- would otherwise be
+        replayed until its nominal hour was up. The coordinator calls this
+        before its one 401 retry; without it the retry is a no-op.
+        """
+        self._token = None
+        self._expires_at = 0.0
+
     async def async_get_token(self) -> str:
         """Return a valid access token, renewing silently when needed."""
         if self._token and time.time() < self._expires_at:
@@ -226,12 +237,17 @@ class PostAtSession:
         session's jar: the jar is shared, its contents depend on redirect
         handling, and nothing guarantees the cookie is still there by the time
         the journey ends. The jar is still consulted as a fallback.
+
+        An empty value is skipped: a ``Set-Cookie`` that *deletes* the cookie
+        carries the same name, and persisting it would produce a sign-in that
+        reports success and then fails on the first poll with an opaque
+        reauth loop, instead of failing here where the message is clear.
         """
         for name, value in found.items():
-            if _is_sso_cookie(name):
+            if _is_sso_cookie(name) and value:
                 return SsoCookie(name, value)
         for cookie in self._session.cookie_jar:
-            if _is_sso_cookie(cookie.key):
+            if _is_sso_cookie(cookie.key) and cookie.value:
                 return SsoCookie(cookie.key, cookie.value)
         return None
 
