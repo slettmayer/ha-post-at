@@ -25,6 +25,11 @@ class Parcel:
     tracking_code: str
     label: str | None
     status: ParcelStatus
+    # Post's own key, both ways round: `tracking_state_key` is verbatim off
+    # the wire (`deliveryHandOver`), `raw_status` is the upper-snaked spelling
+    # the status table is keyed on (`DELIVERY_HAND_OVER`). Both are published
+    # -- the verbatim one is what a bug report or an issue should quote.
+    tracking_state_key: str | None
     raw_status: str | None
     status_text: str | None
     eta_start: datetime | None
@@ -52,6 +57,7 @@ class Parcel:
             "sendungsnummer": self.tracking_code,
             "bezeichnung": self.label,
             "status": self.status.value,
+            "trackingStateKey": self.tracking_state_key,
             "raw_status": self.raw_status,
             "status_text": self.status_text,
             "eta_start": self.eta_start.isoformat() if self.eta_start else None,

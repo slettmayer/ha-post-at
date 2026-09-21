@@ -25,6 +25,28 @@ def test_status_comes_from_tracking_state_key():
     assert parcel.raw_status == "DELIVERY_HAND_OVER"
 
 
+def test_tracking_state_key_is_kept_verbatim():
+    """raw_status is upper-snaked; this one is exactly what Post sent."""
+    parcel = normalize_parcel(SUMMARY, DETAIL)
+    assert parcel.tracking_state_key == "deliveryHandOver"
+    assert parcel.as_attribute()["trackingStateKey"] == "deliveryHandOver"
+
+
+def test_tracking_state_key_is_none_without_detail():
+    parcel = normalize_parcel(SUMMARY, None)
+    assert parcel.tracking_state_key is None
+    assert parcel.as_attribute()["trackingStateKey"] is None
+
+
+def test_an_unmapped_key_is_still_reported_verbatim():
+    """An unknown status is only actionable if the raw key survives."""
+    detail = deepcopy(DETAIL)
+    detail["sendungsEvents"][0]["trackingStateKey"] = "somethingPostInvented"
+    parcel = normalize_parcel(SUMMARY, detail)
+    assert parcel.status is ParcelStatus.UNKNOWN
+    assert parcel.tracking_state_key == "somethingPostInvented"
+
+
 def test_coarse_an_status_is_ignored():
     """The summary says AN; deliveryHandOver is in_transit, not registered."""
     assert normalize_parcel(SUMMARY, DETAIL).status is not ParcelStatus.REGISTERED

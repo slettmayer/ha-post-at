@@ -96,6 +96,15 @@ async def test_count_sensor_lists_every_parcel_in_its_attribute(hass):
     assert parcels[1]["status"] == "delivered"
 
 
+async def test_parcels_expose_the_verbatim_tracking_state_key(hass):
+    await setup_integration(hass)
+    state = hass.states.get("sensor.osterreichische_post_parcels_in_delivery")
+    parcels = state.attributes["parcels"]
+
+    assert parcels[0]["trackingStateKey"] == "deliveryHandOver"
+    assert parcels[1]["trackingStateKey"] == "delivered"
+
+
 async def test_attributes_carry_no_address(hass):
     await setup_integration(hass)
     state = hass.states.get("sensor.osterreichische_post_parcels_in_delivery")
