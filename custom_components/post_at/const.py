@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from enum import StrEnum
+from zoneinfo import ZoneInfo
 
 from homeassistant.const import Platform
 
@@ -149,6 +150,12 @@ query ShipmentPublic($id: String!) {
 """
 
 
+# Post's delivery estimates are Austrian calendar days, whatever timezone Home
+# Assistant runs in, so a value that arrives without a time is read in Vienna
+# rather than in the user's own zone: a parcel is delivered on the Austrian
+# Tuesday regardless of where the dashboard is being looked at.
+POST_TIMEZONE = ZoneInfo("Europe/Vienna")
+
 # --- Polling -----------------------------------------------------------------
 #
 # Short while anything is moving, long when nothing is. Not user-configurable:
@@ -166,6 +173,13 @@ EVENT_PARCEL_REGISTERED = "post_at_parcel_registered"
 EVENT_PARCEL_STATUS_CHANGED = "post_at_parcel_status_changed"
 EVENT_PARCEL_DELIVERED = "post_at_parcel_delivered"
 EVENT_PARCEL_DELIVERY_TIME_CHANGED = "post_at_parcel_delivery_time_changed"
+
+# A parcel can turn up on the account list already delivered -- on the 60
+# minute idle cadence that is the ordinary case for a single surprise parcel,
+# and `delivered` has to fire or "tell me when a parcel arrives" misses it.
+# But Post also surfaces old deliveries late, so only a recent arrival is
+# announced: nobody wants to be told about last month's parcel.
+FIRST_SIGHT_DELIVERED_MAX_AGE_HOURS = 24
 
 
 # How long a delivered parcel stays on the summary sensor. Post's account list

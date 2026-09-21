@@ -168,11 +168,17 @@ every parcel, present and future:
 |---|---|
 | `post_at_parcel_registered` | A parcel appears on the account |
 | `post_at_parcel_status_changed` | Canonical status changed (`old_status` / `new_status` in the payload), except the final hop to delivered |
-| `post_at_parcel_delivered` | A parcel was delivered |
+| `post_at_parcel_delivered` | A parcel was delivered (see below for one first seen already delivered) |
 | `post_at_parcel_delivery_time_changed` | The expected delivery window moved |
 
 Every payload is the full parcel as described above. All four are suppressed on
 the first refresh after a restart, so rebooting does not replay your history.
+
+A parcel can turn up on the account already delivered, with no transition to
+observe -- on the hourly idle cadence that is the ordinary case for a single
+unexpected parcel. `post_at_parcel_delivered` fires for it too, alongside
+`post_at_parcel_registered`, provided it arrived within the last 24 hours.
+Post also surfaces much older deliveries late, and those stay quiet.
 
 ```yaml
 automation:

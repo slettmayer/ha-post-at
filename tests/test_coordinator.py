@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.update_coordinator import UpdateFailed
+from homeassistant.util import dt as dt_util
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.post_at.api import PostAtApiError
@@ -266,8 +267,6 @@ async def test_unchanged_parcel_fires_nothing(hass, entry):
 
 
 def _delivered_detail(days_ago: int):
-    from homeassistant.util import dt as dt_util
-
     when = dt_util.utcnow() - timedelta(days=days_ago)
     return _detail("delivered", when.isoformat())
 
@@ -367,3 +366,41 @@ async def test_returning_parcels_are_re_enriched_every_poll(hass, entry):
 
     assert coordinator.data[0].status is ParcelStatus.RETURNING
     assert client.async_get_public_detail.await_count == 2
+
+
+async def _first_sight(hass, entry, timestamp):
+    """Introduce an already-delivered parcel *after* the first refresh.
+
+    The first refresh is deliberately silent, so the parcel has to arrive on
+    a later poll for the first-sight path to be the one under test.
+    """
+    client = _client([], {})
+    coordinator = PostAtCoordinator(hass, entry, client)
+    await coordinator.async_refresh()
+
+    delivered = []
+    hass.bus.async_listen(EVENT_PARCEL_DELIVERED, delivered.append)
+    client.async_list_shipments = AsyncMock(return_value=[SUMMARY_ONE])
+    client.async_get_public_detail = AsyncMock(
+        return_value=_detail("delivered", timestamp=timestamp)
+    )
+    await coordinator.async_refresh()
+    await hass.async_block_till_done()
+    return delivered
+
+
+async def test_a_parcel_first_seen_already_delivered_fires_delivered(hass, entry):
+    """There is no transition to observe, but it did just arrive."""
+    just_now = (dt_util.utcnow() - timedelta(minutes=30)).isoformat()
+    assert len(await _first_sight(hass, entry, just_now)) == 1
+
+
+async def test_an_old_delivery_surfacing_late_stays_quiet(hass, entry):
+    """Post's list reaches months back; nobody wants last month's parcel."""
+    long_ago = (dt_util.utcnow() - timedelta(days=40)).isoformat()
+    assert await _first_sight(hass, entry, long_ago) == []
+
+
+async def test_a_first_sight_delivery_without_a_timestamp_stays_quiet(hass, entry):
+    """A missed notification beats a wrong one."""
+    assert await _first_sight(hass, entry, None) == []

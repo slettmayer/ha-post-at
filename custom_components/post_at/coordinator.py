@@ -25,6 +25,7 @@ from .const import (
     EVENT_PARCEL_DELIVERY_TIME_CHANGED,
     EVENT_PARCEL_REGISTERED,
     EVENT_PARCEL_STATUS_CHANGED,
+    FIRST_SIGHT_DELIVERED_MAX_AGE_HOURS,
     IDLE_INTERVAL_MINUTES,
     ParcelStatus,
 )
@@ -130,11 +131,19 @@ class PostAtCoordinator(TimestampDataUpdateCoordinator[list[Parcel]]):
             self._seen_first_refresh = True
             return
 
+        now = dt_util.utcnow()
         for parcel in parcels:
             before = previous.get(parcel.tracking_code)
             payload = parcel.as_attribute()
             if before is None:
                 self.hass.bus.async_fire(EVENT_PARCEL_REGISTERED, payload)
+                # A parcel can appear already delivered -- there is no
+                # transition to observe, but it did just arrive, so the
+                # arrival event still has to fire.
+                if parcel.status is ParcelStatus.DELIVERED and _arrived_recently(
+                    parcel, now
+                ):
+                    self.hass.bus.async_fire(EVENT_PARCEL_DELIVERED, payload)
                 continue
             if before.status is not parcel.status:
                 # The final hop to delivered gets its own event rather than a
@@ -152,6 +161,21 @@ class PostAtCoordinator(TimestampDataUpdateCoordinator[list[Parcel]]):
                     )
             if (before.eta_start, before.eta_end) != (parcel.eta_start, parcel.eta_end):
                 self.hass.bus.async_fire(EVENT_PARCEL_DELIVERY_TIME_CHANGED, payload)
+
+
+def _arrived_recently(parcel: Parcel, now: datetime) -> bool:
+    """Whether a parcel seen for the first time has only just been delivered.
+
+    Post's account list reaches months back and can surface an old delivery
+    late, so an unbounded first-sight `delivered` would announce a parcel that
+    arrived weeks ago. A parcel whose delivery carries no usable timestamp
+    stays silent: a missed notification is better than a wrong one, and the
+    parcel is still published on the summary sensor either way.
+    """
+    when = _delivered_at(parcel)
+    if when is None:
+        return False
+    return when >= now - timedelta(hours=FIRST_SIGHT_DELIVERED_MAX_AGE_HOURS)
 
 
 def _drop_stale_deliveries(parcels: list[Parcel]) -> list[Parcel]:

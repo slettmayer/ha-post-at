@@ -27,6 +27,17 @@ happy path never reaches.
   as though it were a credential, producing a sign-in that reported success
   and then failed on the first poll. It now fails at sign-in, with a message
   that says so.
+- **A parcel first seen already delivered now fires `parcel_delivered`.**
+  There is no transition to observe in that case, so the arrival event never
+  fired — and on the hourly idle cadence that is the ordinary case for a
+  single unexpected parcel, which made the README's own "tell me when a
+  parcel arrives" automation miss it. Only an arrival inside the last 24
+  hours is announced; Post surfaces much older deliveries late and those stay
+  quiet.
+- **A delivery date with no time is read as an Austrian calendar day.** Post
+  sends full timestamps today, but the sibling date-only field in the same
+  payload shows a bare date is possible — and it would have been parsed
+  without a timezone, which breaks the next-delivery sensor.
 - Reauth no longer reloads the entry twice, which Home Assistant deprecates
   today and stops allowing in 2026.12.
 

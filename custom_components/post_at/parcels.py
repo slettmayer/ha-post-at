@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import Any
 
-from .const import LANGUAGE_DE, TRACKING_URL, ParcelStatus
+from .const import LANGUAGE_DE, POST_TIMEZONE, TRACKING_URL, ParcelStatus
 from .models import Parcel
 from .status import map_status, normalize_state_key
 
@@ -95,13 +95,10 @@ def _event_time(event: dict[str, Any]) -> datetime:
     events carry mixed offsets -- a cross-border parcel -- would pick an older
     event and roll the status backwards, the very thing the sort prevents.
 
-    An unparseable timestamp sorts oldest, and a naive one is read as UTC:
-    both only affect ordering, never a published value.
+    An unparseable timestamp sorts oldest; that only affects ordering, never
+    a published value.
     """
-    parsed = _parse_dt(event.get("timestamp"))
-    if parsed is None:
-        return datetime.min.replace(tzinfo=UTC)
-    return parsed if parsed.tzinfo else parsed.replace(tzinfo=UTC)
+    return _parse_dt(event.get("timestamp")) or datetime.min.replace(tzinfo=UTC)
 
 
 def _event_text(event: dict[str, Any] | None, language: str) -> str | None:
@@ -134,13 +131,25 @@ def _event_projection(
 
 
 def _parse_dt(value: Any) -> datetime | None:
-    """Parse one of Post's ISO timestamps, keeping it timezone-aware."""
+    """Parse one of Post's ISO timestamps as an aware datetime.
+
+    ``estimatedDelivery`` carries full timestamps today, but the sibling
+    ``estimatedDeliveryDate`` in the same payload is date-only, so a bare date
+    turning up here is plausible -- and ``fromisoformat`` would return it
+    naive. Naive is not survivable downstream: mixed with an aware ETA,
+    ``min()`` in ``sensor.next_delivery`` raises ``TypeError`` inside a
+    property and kills the sensor, and on its own Home Assistant rejects it
+    for a ``timestamp`` device class.
+
+    A bare date means that calendar day in Austria, so it is read in Vienna.
+    """
     if not value:
         return None
     try:
-        return datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+        parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
     except ValueError:
         return None
+    return parsed if parsed.tzinfo else parsed.replace(tzinfo=POST_TIMEZONE)
 
 
 def _as_float(value: Any) -> float | None:
