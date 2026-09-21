@@ -410,14 +410,21 @@ requires. The icon is an original work, not Post's logo -- see
   tracking endpoint, `graphqlAuthenticated` carries no expectation of stability.
   Post may change or gate it without notice.
 - **Terms of service — resolved as far as it can be, 2026-09-21.** Post
-  publishes no terms of use covering their website, the account area or these
-  endpoints: every document under `/i/c/agb*` is a per-product PDF about the
-  postal contract, the German content sitemap holds no `nutzungsbedingungen`
-  page, and `robots.txt` carries no `Disallow`. Nothing permits this and
-  nothing forbids it. Since the gap cannot be closed from the outside, the
-  README carries an explicit "use at your own risk" disclaimer naming the
-  unknown rather than implying the question was settled. Asking Post directly
-  was considered and rejected: silence is not binding, a refusal would be.
+  publishes terms of use for exactly one online surface: `Nutzungsbedingungen
+  ELLA` (`https://ella.post.at/nutzungsbedingungen`, also linked as a PDF from
+  `/i/c/agb-allgemein`). They govern Post's **business** portal, are open only
+  to `Unternehmer*innen` — ELLA's FAQ says a private post.at account cannot
+  register for it — and contain no clause on automated access, scraping or
+  interfaces. Everything else under `/i/c/agb*` is a per-product document for
+  something Post sells: postal services, customs charges, the Empfangsbox
+  licence, the `yelllow` mobile brand. Nothing was found governing the private
+  account area this integration drives; the German content sitemap holds no
+  consumer `nutzungsbedingungen` page, and `robots.txt` carries no `Disallow`.
+  Nothing permits this and nothing forbids it. Since the gap cannot be closed
+  from the outside, the README carries an explicit "use at your own risk"
+  disclaimer naming the unknown rather than implying the question was settled.
+  Asking Post directly was considered and rejected: silence is not binding, a
+  refusal would be.
 - **`trackingStateKey` is unverified on the authenticated endpoint.** This is
   why enrichment reads from the public endpoint instead (§5). If a parcel ever
   appears in the account that the public endpoint will not resolve, it degrades

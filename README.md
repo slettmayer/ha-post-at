@@ -280,12 +280,17 @@ This integration is not affiliated with, endorsed by, or supported by
 **undocumented, unsanctioned endpoints** of Post's consumer website, using your
 own credentials to read your own account.
 
-**The terms are unknown.** Österreichische Post publishes no terms of use
-covering their website, their account area or these endpoints — their published
-AGB are per-product documents about the postal contract itself. We could find
-nothing that permits this and nothing that forbids it. That is an absence of
-rules, not permission, and it is not legal advice. If automated access to your
-post.at account matters to you, satisfy yourself before installing.
+**The terms are unknown.** Österreichische Post publishes terms of use for
+exactly one of its online surfaces:
+[Nutzungsbedingungen ELLA](https://ella.post.at/nutzungsbedingungen), governing
+their **business** portal. Those apply only to `Unternehmer*innen` — ELLA's own
+FAQ states that registering it with a private post.at account is not permitted
+— and they carry no clause about automated access in any case. We found nothing
+governing the private account area this integration uses, or these endpoints.
+
+So: nothing permits this and nothing forbids it. That is an absence of rules,
+not permission, and it is not legal advice. If automated access to your post.at
+account matters to you, satisfy yourself before installing.
 
 Consequences you accept by using it:
 

@@ -10,10 +10,13 @@
   for a German Home Assistant and English otherwise, and changing it reloads
   the entry so cached delivered parcels are re-fetched rather than left in the
   old language.
-- **The disclaimer now states the terms question plainly.** Österreichische
-  Post publishes no terms of use covering their website, account area or these
-  endpoints — nothing permits this and nothing forbids it. The README says so,
-  and says use at your own risk, instead of implying the matter was settled.
+- **The disclaimer now states the terms question plainly.** The only terms of
+  use Österreichische Post publishes for an online surface cover ELLA, their
+  business portal, which is open to companies only and carries no clause on
+  automated access; nothing was found governing the private account area this
+  integration uses. Nothing permits this and nothing forbids it. The README
+  says so, and says use at your own risk, instead of implying the matter was
+  settled.
 
 ## 0.1.2
 
