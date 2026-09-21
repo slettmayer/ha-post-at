@@ -264,6 +264,12 @@ has been confirmed against a real delivered parcel.
 
 ## Credits
 
+The icon is an **original work** authored in this repository and shipped under
+its MIT licence. It is deliberately **not** Österreichische Post's post-horn
+mark, wordmark or brand yellow — those are registered trademarks and are not
+ours to relicense. See [docs/tech/BRANDING.md](docs/tech/BRANDING.md) for the
+reasoning and `scripts/generate_brand_icon.py` for how it is produced.
+
 The `TrackingState` vocabulary in
 [`status.py`](custom_components/post_at/status.py) was lifted from Post's own
 app by the MIT-licensed

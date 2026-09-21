@@ -376,8 +376,16 @@ names, addresses and tracking numbers scrubbed.
 
 Beyond a working integration, HACS default listing needs a repository
 description and topics, a valid `hacs.json`, green hassfest and HACS validation,
-a tagged release, and a PR to `home-assistant/brands` adding an icon and logo for
-the `post_at` domain.
+and a tagged release.
+
+The brand icon ships **in this repository**, at
+`custom_components/post_at/brand/icon.png`. No pull request against
+`home-assistant/brands` is made or possible: its README states that since HA
+2026.3.0 custom components carry their own brand icons, making its
+`custom_integrations/` directory legacy. The in-repo asset also satisfies the
+HACS `brands` check without an `ignore:` entry, which default-store submission
+requires. The icon is an original work, not Post's logo -- see
+[BRANDING.md](../../tech/BRANDING.md).
 
 ## 12. Open risks
 
