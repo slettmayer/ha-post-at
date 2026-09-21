@@ -120,6 +120,11 @@ class PostAtSession:
                 "referer": authorize,
                 "cookie": cookie_header(found),
             },
+            # The Cookie header is set explicitly, and aiohttp keeps explicit
+            # headers across redirects -- including origin-changing ones. This
+            # response is expected to be JSON, so never follow a redirect and
+            # never risk handing B2C's session cookies to another host.
+            allow_redirects=False,
         ) as response:
             _absorb_cookies(response, found)
             body = await response.text()

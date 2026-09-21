@@ -4,6 +4,7 @@ import json
 import re
 
 import pytest
+from multidict import CIMultiDict
 from pytest_homeassistant_custom_component.test_util.aiohttp import (
     mock_aiohttp_client,
 )
@@ -348,3 +349,65 @@ def test_journey_base_uses_the_prefix_verbatim():
     )
     assert base == f"{B2C_HOST}/tenant-id/B2C_1A_renamed"
     assert policy == "B2C_1A_renamed"
+
+
+class _RecordingResponse:
+    """Minimal aiohttp-response stand-in for the redirect-policy test."""
+
+    def __init__(self, body: str, cookies: list[str]):
+        self._body = body
+        self.status = 200
+        self.history = ()
+        self.headers = CIMultiDict()
+        for raw in cookies:
+            self.headers.add("Set-Cookie", raw)
+
+    async def text(self):
+        return self._body
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *exc):
+        return False
+
+
+class _RecordingSession:
+    """Records the kwargs of every request so redirect policy is assertable.
+
+    AiohttpClientMocker records only (method, url, data, headers), so
+    ``allow_redirects`` is invisible to it -- and that flag is a security
+    property here, not a detail.
+    """
+
+    def __init__(self):
+        self.calls: list[tuple[str, str, dict]] = []
+
+    def get(self, url, **kwargs):
+        self.calls.append(("GET", url, kwargs))
+        if "authorize" in url:
+            return _RecordingResponse(SIGNIN_PAGE, [CSRF_HEADER["Set-Cookie"]])
+        return _RecordingResponse("", [SSO_HEADER["Set-Cookie"]])
+
+    def post(self, url, **kwargs):
+        self.calls.append(("POST", url, kwargs))
+        return _RecordingResponse('{"status":"200"}', [SSO_HEADER["Set-Cookie"]])
+
+
+async def test_every_cookie_bearing_request_refuses_redirects():
+    """Explicit Cookie headers survive redirects in aiohttp (CWE-201).
+
+    Any request that carries B2C's cookies must therefore not follow one, or
+    an origin-changing redirect could hand the session to another host.
+    """
+    session = _RecordingSession()
+    await PostAtSession(session).async_login("u@example.invalid", "pw")
+
+    carrying_cookies = [
+        (method, url, kwargs)
+        for method, url, kwargs in session.calls
+        if kwargs.get("headers", {}).get("cookie")
+    ]
+    assert carrying_cookies, "no request carried cookies -- test is not exercising it"
+    for method, url, kwargs in carrying_cookies:
+        assert kwargs.get("allow_redirects") is False, f"{method} {url}"
