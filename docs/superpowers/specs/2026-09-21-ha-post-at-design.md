@@ -294,7 +294,17 @@ back `unknown`.
 
 `status_text` is Post's own `textEn` and `eta_text` its own
 `estimatedDeliveryDateText`; neither needs mapping and both read well on a
-dashboard.
+dashboard. `sender` comes from `shipper.name`, which Post leaves null on most
+consumer parcels. `weight` is kilograms and `dimensions` centimetres,
+confirmed 2026-09-21 against a real 5.85 kg / 80x53x32 parcel.
+
+**Retention.** Active parcels are always published; delivered ones only for
+`DELIVERED_RETENTION_DAYS` (7). The account list reaches months back, and a
+measured 10 parcels already cost 6.2 KB of state attribute -- 25 would be
+~15.6 KB against Home Assistant's ~16 KB ceiling, rewritten into the recorder
+on every poll. Events are emitted *before* the filter runs and diff against
+their own history, so a parcel aging out neither suppresses its delivery event
+nor re-announces itself on the next poll.
 
 No address fields. `recipientAddress` is the user's own name and street on every
 parcel; it adds nothing to a dashboard and would otherwise land in the recorder

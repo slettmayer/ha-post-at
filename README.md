@@ -120,7 +120,10 @@ break any dashboard that names one. One stable sensor plus
 
 ## The `parcels` attribute
 
-Every parcel on the account, active and recently delivered:
+Every parcel still on its way, plus those delivered in the last **7 days**.
+Post's account list reaches months back; publishing all of it would push the
+attribute past what Home Assistant will carry (~16 KB) and rewrite the whole
+blob into the recorder on every poll.
 
 | Field | Meaning |
 |---|---|
@@ -133,9 +136,9 @@ Every parcel on the account, active and recently delivered:
 | `eta_start` / `eta_end` | Expected delivery window, ISO 8601 |
 | `eta_time` | Expected time of day, when Post gives one |
 | `eta_text` | Post's own phrasing (`Voraussichtlich morgen`) |
-| `sender` | Shipper name, when Post exposes it |
-| `weight` | Assumed kilograms — **unverified**, see the disclaimer |
-| `dimensions` | `height` / `length` / `width`, assumed centimetres — **unverified** |
+| `sender` | Shipper name. Post leaves this `null` on most consumer parcels — do not rely on it |
+| `weight` | Kilograms |
+| `dimensions` | `height` / `length` / `width`, in centimetres |
 | `last_event` | `timestamp`, `place`, `state_key`, `text` |
 | `url` | Deep link to the parcel on post.at |
 
@@ -258,9 +261,6 @@ timings, so they are safe to attach to an issue.
 This integration uses undocumented endpoints of Österreichische Post's consumer
 website. It is not affiliated with, endorsed by, or supported by
 Österreichische Post AG. It may break at any time.
-
-`weight` and `dimensions` are assumed to be kilograms and centimetres; neither
-has been confirmed against a real delivered parcel.
 
 ## Credits
 

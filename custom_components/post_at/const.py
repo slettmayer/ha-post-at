@@ -69,8 +69,16 @@ CONF_SSO_COOKIE_VALUE = "sso_cookie_value"
 GRAPHQL_AUTHENTICATED_URL = "https://api.post.at/sendungen/sv/graphqlAuthenticated"
 GRAPHQL_PUBLIC_URL = "https://api.post.at/sendungen/sv/graphqlPublic"
 
-# The app's own deep link into the consumer tracking page.
+# Deep links into the consumer site. These two follow *opposite* conventions,
+# verified against the live site -- do not "tidy" them into one shape:
+#
+#   /s/sendungsdetails?snr=...     200   /en/... and /de/... both 404
+#   /en/s/item-overview            307   /s/... and /de/... both 404
+#
+# The 307 on item-overview is the language hop; it sets `postat#lang=en` and
+# lands on the account's shipment list.
 TRACKING_URL = "https://www.post.at/s/sendungsdetails?snr={tracking_code}"
+ACCOUNT_URL = "https://www.post.at/en/s/item-overview"
 
 LIST_ELEMENT_COUNT = 25
 
@@ -130,3 +138,10 @@ EVENT_PARCEL_REGISTERED = "post_at_parcel_registered"
 EVENT_PARCEL_STATUS_CHANGED = "post_at_parcel_status_changed"
 EVENT_PARCEL_DELIVERED = "post_at_parcel_delivered"
 EVENT_PARCEL_DELIVERY_TIME_CHANGED = "post_at_parcel_delivery_time_changed"
+
+
+# How long a delivered parcel stays on the summary sensor. Post's account list
+# reaches months back, and every entry is rewritten into the recorder on each
+# poll -- 25 parcels is roughly 15 KB, against Home Assistant's ~16 KB
+# practical ceiling for a state attribute.
+DELIVERED_RETENTION_DAYS = 7
