@@ -134,8 +134,9 @@ from the redirect fragment.
 90-day absolute expiry: issued 2026-09-21 14:32Z, expiring 2026-12-20 14:32Z.
 Every `prompt=none` renewal rotates the cookie *value* — B2C anti-fixation
 hygiene — while leaving that expiry untouched, so the window is fixed at
-sign-in and polling cannot extend it. Reauthentication is a quarterly event,
-not a daily one.
+sign-in and polling cannot extend it. Reauthentication is therefore a
+quarterly event rather than a daily one — but 90 days is an upper bound, not a
+promise, for the reason given three paragraphs down.
 
 The rotated value is deliberately dropped: `async_get_token()` reads only the
 redirect and never writes back to the config entry. That is safe because Post
