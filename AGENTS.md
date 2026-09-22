@@ -112,8 +112,15 @@ Both cost a live debugging round; both now have regression tests.
 - **The sign-in journey is HTML-shaped.** Post restyling their B2C pages breaks
   `SelfAsserted` parsing. Tenant and policy are read from the page's own
   `SETTINGS.hosts` to soften this; the page structure itself cannot be defended.
-- **The SSO cookie's lifetime is unverified.** If it proves short-lived, users
-  re-authenticate often and `auth.py` needs rethinking.
+- **The SSO cookie lives at most 90 days**, measured 2026-09-22 against a real
+  account (issued 2026-09-21, expires 2026-12-20). It is a ceiling, not a
+  schedule — an idle timeout could end a session sooner, so never promise
+  users a reauthentication interval. `prompt=none` rotates the cookie
+  value on every renewal but never moves that expiry, so the window is absolute
+  from sign-in. `async_get_token()` deliberately discards the rotated value —
+  Post keeps honouring the predecessor, so there is no reason to rewrite
+  `.storage` hourly. Unverified: whether an idle timeout ends the session
+  sooner. It surfaces as a reauth prompt, not a failure.
 - **`graphqlAuthenticated` is undocumented and unsanctioned.** It may change or
   be gated without notice. This is why enrichment lives on the public endpoint.
 - **Weight is kilograms and dimensions centimetres**, confirmed 2026-09-21

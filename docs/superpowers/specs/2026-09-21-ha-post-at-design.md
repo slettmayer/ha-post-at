@@ -130,6 +130,24 @@ from the redirect fragment.
 
 ### 4.3 Expiry
 
+**Measured 2026-09-22.** `rememberMe=true` yields a persistent cookie with a
+90-day absolute expiry: issued 2026-09-21 14:32Z, expiring 2026-12-20 14:32Z.
+Every `prompt=none` renewal rotates the cookie *value* — B2C anti-fixation
+hygiene — while leaving that expiry untouched, so the window is fixed at
+sign-in and polling cannot extend it. Reauthentication is therefore a
+quarterly event rather than a daily one — but 90 days is an upper bound, not a
+promise, for the reason given three paragraphs down.
+
+The rotated value is deliberately dropped: `async_get_token()` reads only the
+redirect and never writes back to the config entry. That is safe because Post
+does not invalidate the predecessor — the value captured at config-flow time
+kept authenticating across repeated rotations — and it keeps the stored
+credential stable rather than rewriting `.storage` every hour.
+
+Still unmeasured: whether B2C enforces an *idle* timeout that ends the session
+server-side before the cookie's own expiry. The cookie would look valid either
+way; only a `prompt=none` attempt after a long silence can show it.
+
 When `prompt=none` returns an error instead of a token, the session is dead.
 `PostAtAuthExpired` propagates and Home Assistant starts its `reauth` flow,
 which asks for the password only — the email is already known.
@@ -399,10 +417,12 @@ requires. The icon is an original work, not Post's logo -- see
 
 ## 12. Open risks
 
-- **SSO cookie lifetime is unverified.** If `rememberMe=true` still yields a
-  roughly 24-hour session, the user re-authenticates daily and this design needs
-  rethinking. Measuring this is the first implementation task, before any other
-  code is written.
+- **SSO cookie lifetime — resolved 2026-09-22.** `rememberMe=true` yields a
+  90-day absolute window (§4.3), so §4 stands as designed and users
+  re-authenticate roughly quarterly. The residual unknown is an idle timeout:
+  Post may end the session server-side after some period of silence, which
+  would bite a user whose Home Assistant is offline for a long holiday. It
+  fails visibly as a reauth prompt, so it is a nuisance rather than a risk.
 - **The login journey is HTML-shaped.** Post restyling their B2C pages breaks
   `SelfAsserted` parsing. Mitigated by a clear error message and useful
   diagnostics; not preventable.
@@ -436,8 +456,16 @@ requires. The icon is an original work, not Post's logo -- see
 
 ## 13. Milestone 0 — verify before building
 
-1. Log in with `rememberMe=true`; record whether the SSO cookie is persistent and
-   what expiry it carries.
-2. Confirm `prompt=none` still renews after the browser session would have ended.
-3. If the session proves short-lived, stop and revisit §4 before writing
-   integration code.
+**Closed 2026-09-22.** All three checks passed; §4 needed no revision.
+
+1. ~~Log in with `rememberMe=true`; record whether the SSO cookie is persistent
+   and what expiry it carries.~~ Persistent, 90 days — see §4.3.
+2. ~~Confirm `prompt=none` still renews after the browser session would have
+   ended.~~ Renews 21h later, and across value rotations.
+3. ~~If the session proves short-lived, stop and revisit §4 before writing
+   integration code.~~ Not short-lived.
+
+Measured with the throwaway `probe_kmsi.py --reuse` spike. Because the
+integration also discards the rotated cookie (§4.3), the probe is a faithful
+model of what Home Assistant experiences, and its two sessions are independent
+— HA's hourly renewals do not perturb the measurement.
