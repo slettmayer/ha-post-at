@@ -70,8 +70,10 @@ Read this before installing.
   credential Home Assistant persists. Anyone who can read that directory can
   read your parcels.
 - **It can be revoked.** Signing out of post.at everywhere invalidates it.
-- **It expires.** When it does, Home Assistant raises a reauthentication
-  prompt and asks for your password again. Nothing is lost.
+- **It expires after about 90 days.** Measured against a real account: the
+  cookie Post issues carries a 90-day expiry, so expect to re-enter your
+  password roughly once a quarter. When it expires, Home Assistant raises a
+  reauthentication prompt and asks for your password again. Nothing is lost.
 - **Your address is never touched.** The account API returns your name and
   street on every parcel. This integration does not request those fields, and
   they never reach the state machine, the recorder or a diagnostics download.
@@ -270,8 +272,10 @@ timings, so they are safe to attach to an issue.
   If they work in a browser but not here, Post has probably changed their
   sign-in page; please open an issue.
 - **Reauthentication keeps being requested** — the session cookie's lifetime is
-  set by Post, not by this integration. If it expires daily rather than weekly,
-  open an issue with how long it lasted.
+  set by Post, not by this integration. It has been measured at 90 days, so if
+  yours expires in days rather than months, please open an issue with how long
+  it lasted. One known way to shorten it: signing out of post.at everywhere
+  invalidates the cookie immediately.
 - **A parcel shows `unknown`** — either Post has not scanned it yet, or it
   reported a state key that is not mapped. The log line tells you which.
 - **A parcel is missing** — only parcels the account shows under received
