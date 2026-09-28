@@ -29,7 +29,27 @@ SUMMARY_ONE = {"sendungsnummer": "0001", "bezeichnung": "One", "isRecipient": Tr
 SUMMARY_TWO = {"sendungsnummer": "0002", "bezeichnung": "Two", "isRecipient": True}
 
 
-def _detail(state_key, timestamp="2026-09-21T08:00:00.000+00:00", eta=None):
+def _ago(**delta):
+    """An event timestamp relative to now.
+
+    The coordinator drops deliveries older than DELIVERED_RETENTION_DAYS from
+    `utcnow()`, so a fixed date ages every fixture out of the result a week
+    after it was written.
+    """
+    return (dt_util.utcnow() - timedelta(**delta)).isoformat()
+
+
+def _eta_day(days_ahead):
+    """An ETA `startDate` at UTC midnight, `days_ahead` days from today."""
+    day = dt_util.utcnow() + timedelta(days=days_ahead)
+    return day.strftime("%Y-%m-%dT00:00:00.000Z")
+
+
+# Recent enough for every retention and first-sight window.
+RECENT = _ago(hours=2)
+
+
+def _detail(state_key, timestamp=RECENT, eta=None):
     return {
         "estimatedDelivery": eta
         or {"startDate": None, "endDate": None, "startTime": None},
@@ -191,7 +211,7 @@ async def test_status_change_fires_status_changed(hass, entry):
     coordinator = PostAtCoordinator(hass, entry, client)
     await coordinator.async_refresh()
 
-    details["0001"] = _detail("inDelivery", "2026-09-22T06:00:00.000+00:00")
+    details["0001"] = _detail("inDelivery", _ago(hours=1))
     await coordinator.async_refresh()
     await hass.async_block_till_done()
 
@@ -209,7 +229,7 @@ async def test_delivery_fires_delivered_not_status_changed(hass, entry):
     coordinator = PostAtCoordinator(hass, entry, client)
     await coordinator.async_refresh()
 
-    details["0001"] = _detail("delivered", "2026-09-22T09:00:00.000+00:00")
+    details["0001"] = _detail("delivered", _ago(minutes=30))
     await coordinator.async_refresh()
     await hass.async_block_till_done()
 
@@ -224,7 +244,7 @@ async def test_eta_change_fires_delivery_time_changed(hass, entry):
         "0001": _detail(
             "deliveryHandOver",
             eta={
-                "startDate": "2026-09-22T00:00:00.000Z",
+                "startDate": _eta_day(1),
                 "endDate": None,
                 "startTime": None,
             },
@@ -237,7 +257,7 @@ async def test_eta_change_fires_delivery_time_changed(hass, entry):
     details["0001"] = _detail(
         "deliveryHandOver",
         eta={
-            "startDate": "2026-09-23T00:00:00.000Z",
+            "startDate": _eta_day(2),
             "endDate": None,
             "startTime": None,
         },

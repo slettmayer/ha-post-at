@@ -1,8 +1,10 @@
 """The three sensors, exercised through a real config entry setup."""
 
+from datetime import timedelta
 from unittest.mock import AsyncMock, patch
 
 from homeassistant.helpers import device_registry as dr, entity_registry as er
+from homeassistant.util import dt as dt_util
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.post_at.const import (
@@ -19,11 +21,16 @@ SUMMARIES = [
     {"sendungsnummer": "0001", "bezeichnung": "One", "isRecipient": True},
     {"sendungsnummer": "0002", "bezeichnung": "Two", "isRecipient": True},
 ]
+# Relative to now: the coordinator drops deliveries older than
+# DELIVERED_RETENTION_DAYS from `utcnow()`, so fixed dates age the delivered
+# parcel out of every test a week after they were written.
+_NOW = dt_util.utcnow()
+TOMORROW = (_NOW + timedelta(days=1)).strftime("%Y-%m-%d")
 DETAILS = {
     "0001": {
         "estimatedDelivery": {
-            "startDate": "2026-09-22T00:00:00.000Z",
-            "endDate": "2026-09-23T00:00:00.000Z",
+            "startDate": f"{TOMORROW}T00:00:00.000Z",
+            "endDate": (_NOW + timedelta(days=2)).strftime("%Y-%m-%dT00:00:00.000Z"),
             "startTime": None,
         },
         "estimatedDeliveryDateText": "Voraussichtlich morgen",
@@ -33,7 +40,7 @@ DETAILS = {
             {
                 "trackingStateKey": "deliveryHandOver",
                 "textEn": "Item accepted",
-                "timestamp": "2026-09-21T08:00:00.000+00:00",
+                "timestamp": (_NOW - timedelta(hours=2)).isoformat(),
                 "eventPlaceName": "PLZ 9010",
             }
         ],
@@ -44,7 +51,7 @@ DETAILS = {
             {
                 "trackingStateKey": "delivered",
                 "textEn": "Delivered",
-                "timestamp": "2026-09-20T10:00:00.000+00:00",
+                "timestamp": (_NOW - timedelta(days=1)).isoformat(),
                 "eventPlaceName": "PLZ 9020",
             }
         ],
@@ -120,7 +127,7 @@ async def test_attributes_carry_no_address(hass):
 async def test_next_delivery_is_the_earliest_active_eta(hass):
     await setup_integration(hass)
     state = hass.states.get("sensor.osterreichische_post_next_delivery")
-    assert state.state.startswith("2026-09-22")
+    assert state.state.startswith(TOMORROW)
 
 
 async def test_next_delivery_is_unknown_with_nothing_in_flight(hass):
