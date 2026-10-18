@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.5
+
+- The README's HACS install steps lead with searching for the integration in
+  HACS directly; adding it as a custom repository is kept only as the
+  fallback for while it is not yet in the default store.
+
 ## 0.1.4
 
 A review pass over the whole integration. Nothing here changes how it is set

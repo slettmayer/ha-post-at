@@ -93,9 +93,11 @@ use the tracking-number integration linked above instead.
 
 ### HACS
 
-1. In HACS, choose the three-dot menu → **Custom repositories**.
-2. Add `https://github.com/slettmayer/ha-post-at` as an **Integration**.
-3. Install **Österreichische Post (Account)** and restart Home Assistant.
+1. In HACS, search for **Österreichische Post (Account)** and download it. If
+   it does not show up, add this repository as a
+   [custom repository](https://hacs.xyz/docs/faq/custom_repositories/)
+   (type: Integration) first.
+2. Restart Home Assistant.
 
 ### Manual
 

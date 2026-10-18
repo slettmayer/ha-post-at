@@ -9,7 +9,7 @@
 ## Quick Reference
 
 - **Build**: none — pure Python custom component distributed via HACS
-- **Run**: load into Home Assistant (HACS custom repository, or copy `custom_components/post_at/`)
+- **Run**: load into Home Assistant (HACS, or copy `custom_components/post_at/`)
 - **Test**: `python -m pytest tests/ -q`
 - **Lint**: `ruff check . --fix && ruff format .`
 - **Design**: [spec](docs/superpowers/specs/2026-09-21-ha-post-at-design.md) · [plan](docs/superpowers/plans/2026-09-21-ha-post-at.md)
