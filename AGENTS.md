@@ -8,7 +8,7 @@
 
 ## Quick Reference
 
-- **Build**: none — pure Python custom component distributed via HACS
+- **Build**: none — pure Python custom component distributed via the HACS default store (listed since 2026-10-19, [hacs/default#11166](https://github.com/hacs/default/pull/11166))
 - **Run**: load into Home Assistant (HACS, or copy `custom_components/post_at/`)
 - **Test**: `python -m pytest tests/ -q`
 - **Lint**: `ruff check . --fix && ruff format .`
