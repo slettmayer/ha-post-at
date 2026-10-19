@@ -1,7 +1,7 @@
 # Österreichische Post — Account Parcel Tracker
 
 [![Release](https://img.shields.io/github/v/release/slettmayer/ha-post-at.svg)](https://github.com/slettmayer/ha-post-at/releases)
-[![HACS](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://github.com/hacs/integration)
+[![HACS](https://img.shields.io/badge/HACS-Default-41BDF5.svg)](https://github.com/hacs/default)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 A Home Assistant custom integration that signs in to your private
@@ -93,10 +93,12 @@ use the tracking-number integration linked above instead.
 
 ### HACS
 
-1. In HACS, search for **Österreichische Post (Account)** and download it. If
-   it does not show up, add this repository as a
-   [custom repository](https://hacs.xyz/docs/faq/custom_repositories/)
-   (type: Integration), then search for it again and download it.
+The integration is in the [HACS](https://hacs.xyz/) default store.
+
+[![Open your Home Assistant instance and open this repository inside HACS.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=slettmayer&repository=ha-post-at&category=integration)
+
+1. In HACS, search for **Österreichische Post (Account)** and download it (or
+   use the button above).
 2. Restart Home Assistant.
 
 ### Manual
